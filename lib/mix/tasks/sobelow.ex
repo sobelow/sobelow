@@ -121,7 +121,7 @@ defmodule Mix.Tasks.Sobelow do
     {opts, _, _} = OptionParser.parse(argv, aliases: @aliases, switches: @switches)
 
     root = Keyword.get(opts, :root, ".")
-    config = Keyword.get(opts, :config, false)
+    config = Keyword.get(opts, :config, true)
     conf_file = root <> "/.sobelow-conf"
     conf_file? = config && File.exists?(conf_file)
 
@@ -134,15 +134,15 @@ defmodule Mix.Tasks.Sobelow do
 
     opts =
       if conf_file? do
-        {:ok, opts} = File.read!(conf_file) |> Code.string_to_quoted()
-        opts
+        {:ok, file_opts} = File.read!(conf_file) |> Code.string_to_quoted()
+        # CLI args take precedence
+        Keyword.merge(file_opts, opts)
       else
         opts
       end
 
     {verbose, diff, details, private, strict, skip, mark_skip_all, clear_skip, router, exit_on,
-     format, ignored, ignored_files, all_details, out, threshold,
-     version} = get_opts(opts, root, conf_file?)
+     format, ignored, ignored_files, all_details, out, threshold, version} = get_opts(opts, root)
 
     set_env(:verbose, verbose)
 
@@ -214,7 +214,7 @@ defmodule Mix.Tasks.Sobelow do
     Application.put_env(:sobelow, key, value)
   end
 
-  defp get_opts(opts, root, conf_file?) do
+  defp get_opts(opts, root) do
     verbose = Keyword.get(opts, :verbose, false)
     details = Keyword.get(opts, :details, nil)
     all_details = Keyword.get(opts, :all_details)
@@ -249,22 +249,19 @@ defmodule Mix.Tasks.Sobelow do
 
     format = out_format(out, format)
 
-    {ignored, ignored_files} =
-      if conf_file? do
-        {Keyword.get(opts, :ignore, []),
-         Keyword.get(opts, :ignore_files, []) |> Enum.map(&Path.expand(&1, root))}
-      else
-        ignored =
-          Keyword.get(opts, :ignore, "")
-          |> String.split(",")
+    ignored =
+      case Keyword.get(opts, :ignore, []) do
+        ignore_str when is_binary(ignore_str) -> String.split(ignore_str, ",")
+        ignore -> ignore
+      end
 
-        ignored_files =
-          Keyword.get(opts, :ignore_files, "")
-          |> String.split(",")
-          |> Enum.reject(fn file -> file == "" end)
-          |> Enum.map(&Path.expand(&1, root))
+    ignored_files =
+      case Keyword.get(opts, :ignore_files, []) do
+        ignore_files when is_list(ignore_files) ->
+          Enum.map(ignore_files, &Path.expand(&1, root))
 
-        {ignored, ignored_files}
+        ignore_files_str when is_binary(ignore_files_str) ->
+          for i <- String.split(ignore_files_str, ",", trim: true), do: Path.expand(i, root)
       end
 
     threshold =
