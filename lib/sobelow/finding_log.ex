@@ -110,7 +110,7 @@ defmodule Sobelow.FindingLog do
     [mod, _] = String.split(finding.type, ":", parts: 2)
 
     %{
-      ruleId: Sobelow.get_mod(mod).id,
+      ruleId: Sobelow.get_mod(mod) |> get_in([:id]),
       message: %{
         text: finding.type
       },
