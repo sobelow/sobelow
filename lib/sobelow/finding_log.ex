@@ -108,6 +108,8 @@ defmodule Sobelow.FindingLog do
 
   defp format_sarif(finding) do
     [mod, _] = String.split(finding.type, ":", parts: 2)
+    mod_struct = Sobelow.get_mod(mod)
+    rule_id = if is_struct(mod_struct), do: mod_struct.id, else: nil
 
     %{
       ruleId: Sobelow.get_mod(mod) |> get_in([:id]),
