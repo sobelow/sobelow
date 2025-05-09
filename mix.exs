@@ -1,7 +1,7 @@
 defmodule Sobelow.Mixfile do
   use Mix.Project
 
-  @source_url "https://github.com/nccgroup/sobelow"
+  @source_url "https://github.com/sobelow/sobelow"
   @version "0.13.0"
 
   def project do
@@ -12,6 +12,14 @@ defmodule Sobelow.Mixfile do
       build_embedded: Mix.env() == :prod,
       start_permanent: Mix.env() == :prod,
       deps: deps(),
+      test_coverage: [tool: ExCoveralls],
+      preferred_cli_env: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.cobertura": :test
+      ],
       package: package(),
       description: "Security-focused static analysis for Elixir & the Phoenix framework",
       name: "Sobelow",
@@ -32,8 +40,9 @@ defmodule Sobelow.Mixfile do
       {:jason, "~> 1.0"},
 
       # Dev / Test Dependencies
-      {:ex_doc, "~> 0.20", only: :dev},
-      {:credo, "~> 1.6 or ~> 1.7", only: [:dev, :test], runtime: false}
+      {:ex_doc, "~> 0.37", only: :dev},
+      {:credo, "~> 1.7.12", only: [:dev, :test], runtime: false},
+      {:excoveralls, "~> 0.18", only: :test}
     ]
   end
 
