@@ -1,5 +1,22 @@
 # Changelog
 
+## v0.14.0
+  * Removed
+    * Support for minimum Elixir versions 1.7 - 1.11 (**POTENTIALLY BREAKING** - only applies if you relied on Elixir 1.7 through 1.11, 1.12+ is still supported)
+  * Enhancements
+    * Added support for multiple variations of `SQL.query()`
+    * Added support for `System.shell' command introduced in Elixir v1.12
+    * Ignore runtime config during `Config.HSTS`
+    * Updated developer dependencies (`ex_doc` & `credo`)
+  * Bug fixes
+    * Fixed `is_endpoint?` error in main
+    * Fixed findings normalization bug
+    * Fixed truncation error
+  * Misc
+    * GitHub Actions test matrix updated (hence the large drop in support for old Elixir versions)
+    * Addressed compiler warnings from Elixir v1.18.x
+    * Moved from `master` branch to `main`
+
 ## v0.13.0
   * Removed
     * Support for minimum Elixir versions 1.5 & 1.6 (**POTENTIALLY BREAKING** - only applies if you relied on Elixir 1.5 or 1.6, 1.7+ is still supported)
@@ -18,7 +35,7 @@
       * Compiler Warnings as Errors
       * Checks Formatting
     * Added helper `mix test.all` alias
-    
+
 ## v0.12.2
   * Bug fixes
     * Removed `:castore` and introduced `:verify_none` to quiet warning and unblock escript usage, see [#133](https://github.com/nccgroup/sobelow/issues/133) for more context on why this is necessary
@@ -55,19 +72,19 @@
 ## v0.11.1
   * Enhancements
     * Sarif output with `--out` flag
-    * `--strict` flag, which throws compilation errors instead of suppressing them.  
+    * `--strict` flag, which throws compilation errors instead of suppressing them.
 
 ## v0.11.0
   * Enhancements
     * Sarif output for GitHub integration
     * `--flycheck` flag, which reverses output of `--compact`
   * Bug fixes
-    * Non-compiling files now return an empty syntax tree instead of 
+    * Non-compiling files now return an empty syntax tree instead of
     causing Sobelow errors.
     * Command Injection finding description are properly formatted
   * Misc
-    * If you use Sobelow as a standalone utility (i.e. not as part of 
-    a Phoenix application), you now need to install as an escript with 
+    * If you use Sobelow as a standalone utility (i.e. not as part of
+    a Phoenix application), you now need to install as an escript with
     `mix escript.install hex sobelow`.
     * Custom JSON serialization replaced with Jason.
 
@@ -105,7 +122,7 @@
 ## v0.9.3
   * Enhancements
     * Improved checks for all aliased functions
-    
+
   * Bug Fixes
     * JSON output for Raw findings is now properly normalized
     * `send_download` correctly flags aliased function calls
@@ -124,7 +141,7 @@
     * Add `--mark-skip-all` and `--clear-skip` flags
     * New CSRF via action reuse checks
     * Sobelow can now be run in umbrella apps
-     
+
   * Bug Fixes
     * Fix an error when printing some kinds of variables
 
@@ -134,26 +151,26 @@
         * All JSON findings contain `type`, `file`, and `line` keys
         * "Line" output now refers directly to the vulnerable line
         * Default output headers have been normalized
-    
-    **Note:** If you depend on the structure of the output, this 
-    may be a breaking change. More information can be found at 
+
+    **Note:** If you depend on the structure of the output, this
+    may be a breaking change. More information can be found at
     [https://sobelow.io](https://sobelow.io).
 
 ## v0.7.8
   * Enhancements
     * Add `--threshold` flag
     * Add module names to finding output
-    
+
   * Deprecations
-    * File/Path check has been deprecated  
-   
+    * File/Path check has been deprecated
+
   * Bug Fixes
     * Fix inaccurate CSRF details
 
 ## v0.7.7
   * Enhancements
     * Add check for insecure websocket settings
-    
+
   * Bug Fixes
     * Accept module attributes for application name
 
@@ -231,7 +248,7 @@
 
   * Bug Fixes
     * Allow RCE module to be appropriately ignored.
-    
+
 ## v0.6.4
 
   * Enhancements
@@ -241,8 +258,8 @@
 
   * Enhancements
     * Add RCE module to check for code execution via `Code` and `EEx`.
-    
+
   * Deprecations
-    * The `--with-code` flag has been changed to `--verbose`. The `--with-code` 
-    flag will continue to work as expected until v1.0.0, but will print a 
+    * The `--with-code` flag has been changed to `--verbose`. The `--with-code`
+    flag will continue to work as expected until v1.0.0, but will print a
     warning message.
