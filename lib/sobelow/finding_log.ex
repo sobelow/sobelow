@@ -109,10 +109,20 @@ defmodule Sobelow.FindingLog do
   defp format_sarif(finding) do
     [mod, _] = String.split(finding.type, ":", parts: 2)
     mod_struct = Sobelow.get_mod(mod)
-    rule_id = if is_struct(mod_struct), do: mod_struct.id, else: nil
+
+    # 1) We got a module and exports id/0 ─ call it via apply/3
+    rule_id =
+      if is_atom(mod_struct) and
+           Code.ensure_loaded?(mod_struct) and
+           function_exported?(mod_struct, :id, 0) do
+        apply(mod_struct, :id, [])
+      else
+        # 2) Anything else – we have no id
+        nil
+      end
 
     %{
-      ruleId: Sobelow.get_mod(mod) |> get_in([:id]),
+      ruleId: rule_id,
       message: %{
         text: finding.type
       },
