@@ -71,7 +71,7 @@ from the command line:
 To install from the master branch, rather than the latest release,
 the following command can be used:
 
-    $ mix escript.install github nccgroup/sobelow
+    $ mix escript.install github sobelow/sobelow
 
 ### To Use
 
