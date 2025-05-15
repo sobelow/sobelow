@@ -68,7 +68,7 @@ from the command line:
 
     $ mix escript.install hex sobelow
 
-To install from the master branch, rather than the latest release,
+To install from the `main` branch, rather than the latest release,
 the following command can be used:
 
     $ mix escript.install github sobelow/sobelow
