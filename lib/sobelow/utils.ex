@@ -94,7 +94,8 @@ defmodule Sobelow.Utils do
   end
 
   defp extract_app_name(ast, acc) do
-    if Keyword.keyword?(ast) && Keyword.get(ast, :app) do
+    # Only extract the first app name found, don't overwrite with subsequent ones
+    if acc == [] && Keyword.keyword?(ast) && Keyword.get(ast, :app) do
       {ast, Keyword.get(ast, :app)}
     else
       {ast, acc}

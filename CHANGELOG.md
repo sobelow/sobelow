@@ -1,5 +1,9 @@
 # Changelog
 
+## v0.14.1 (Unreleased)
+  * Bug fixes
+    * Handled extra config options for app releases in mix.exs
+
 ## v0.14.0
   * Removed
     * Support for minimum Elixir versions 1.7 - 1.11 (**POTENTIALLY BREAKING** - only applies if you relied on Elixir 1.7 through 1.11, 1.12+ is still supported)
