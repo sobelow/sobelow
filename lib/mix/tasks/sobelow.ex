@@ -30,7 +30,7 @@ defmodule Mix.Tasks.Sobelow do
   * `--quiet` - Return no output if there are no findings
   * `--compact` - Minimal, single-line findings
   * `--save-config` - Generates a configuration file based on command line options
-  * `--config` - Run Sobelow with configuration file
+  * `--[no-]config` - Run Sobelow with or without the configuration file.
   * `--version` - Output current version of Sobelow
 
   ## Ignoring modules
