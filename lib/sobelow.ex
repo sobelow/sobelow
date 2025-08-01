@@ -218,6 +218,7 @@ defmodule Sobelow do
   def loggable?(%Finding{} = finding, severity) do
     legacy_skip = finding.legacy_fingerprint && Fingerprint.member?(finding.legacy_fingerprint)
     new_skip = finding.fingerprint && Fingerprint.member?(finding.fingerprint)
+
     !(get_env(:skip) && (new_skip || legacy_skip)) &&
       meets_threshold?(severity)
   end
@@ -501,12 +502,12 @@ defmodule Sobelow do
                   |> Utils.normalize_path()
 
                 "#{finding.type},#{filename}:#{finding.vuln_line_no},#{fingerprint}"
+
               nil ->
                 # Should not happen, each fingerprint should have a corresponding finding
                 fingerprint
             end
           end)
-
 
         {:ok, iofile} = :file.open(cfile, [:append])
         entries_str = Enum.join(skip_entries, "\n")
@@ -530,17 +531,20 @@ defmodule Sobelow do
     line_str = to_string(line) |> String.trim()
 
     # Parse line - could be old format (just hash) or new format (type,filename_line_n,hash)
-    fingerprint = case String.split(line_str, ",") do
-      [fingerprint] when fingerprint != "" ->
-        # Old format: just the fingerprint hash
-        fingerprint
-      [_type, _filename_line_n, fingerprint] when fingerprint != "" ->
-        # New format: type,filename_line_n,phash2 - extract phash2
-        fingerprint
-      _ ->
-        # Invalid line, skip it
-        nil
-    end
+    fingerprint =
+      case String.split(line_str, ",") do
+        [fingerprint] when fingerprint != "" ->
+          # Old format: just the fingerprint hash
+          fingerprint
+
+        [_type, _filename_line_n, fingerprint] when fingerprint != "" ->
+          # New format: type,filename_line_n,phash2 - extract phash2
+          fingerprint
+
+        _ ->
+          # Invalid line, skip it
+          nil
+      end
 
     if fingerprint, do: Fingerprint.put_ignore(fingerprint)
     :file.read_line(iofile) |> load_ignored_fingerprints(iofile)

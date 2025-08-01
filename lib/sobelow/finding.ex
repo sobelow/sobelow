@@ -43,7 +43,11 @@ defmodule Sobelow.Finding do
   end
 
   def fetch_fingerprint(%Sobelow.Finding{} = finding) do
-    %{finding | fingerprint: fingerprint(finding), legacy_fingerprint: legacy_fingerprint(finding)}
+    %{
+      finding
+      | fingerprint: fingerprint(finding),
+        legacy_fingerprint: legacy_fingerprint(finding)
+    }
   end
 
   def fingerprint(%Sobelow.Finding{} = finding) do
