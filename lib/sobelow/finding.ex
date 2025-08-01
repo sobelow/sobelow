@@ -12,7 +12,8 @@ defmodule Sobelow.Finding do
     :fun_name,
     :fun_line_no,
     :fun_source,
-    :fingerprint
+    :fingerprint,
+    :legacy_fingerprint
   ]
 
   alias Sobelow.Utils
@@ -42,10 +43,22 @@ defmodule Sobelow.Finding do
   end
 
   def fetch_fingerprint(%Sobelow.Finding{} = finding) do
-    %{finding | fingerprint: fingerprint(finding)}
+    %{finding | fingerprint: fingerprint(finding), legacy_fingerprint: legacy_fingerprint(finding)}
   end
 
   def fingerprint(%Sobelow.Finding{} = finding) do
+    filename =
+      Utils.get_root()
+      |> Utils.normalize_path()
+      |> (&String.replace_prefix(finding.filename, &1, "")).()
+      |> Utils.normalize_path()
+
+    [finding.type, finding.vuln_source, filename, finding.vuln_line_no]
+    |> :erlang.phash2()
+    |> Integer.to_string(16)
+  end
+
+  def legacy_fingerprint(%Sobelow.Finding{} = finding) do
     filename =
       Utils.get_root()
       |> Utils.normalize_path()

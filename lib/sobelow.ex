@@ -209,14 +209,16 @@ defmodule Sobelow do
   end
 
   def log_finding(details, %Finding{} = finding) do
-    if loggable?(finding.fingerprint, finding.confidence) do
+    if loggable?(finding, finding.confidence) do
       Fingerprint.put(finding.fingerprint)
       FindingLog.add({details, finding}, finding.confidence)
     end
   end
 
-  def loggable?(fingerprint, severity) do
-    !(get_env(:skip) && Fingerprint.member?(fingerprint)) &&
+  def loggable?(%Finding{} = finding, severity) do
+    legacy_skip = finding.legacy_fingerprint && Fingerprint.member?(finding.legacy_fingerprint)
+    new_skip = finding.fingerprint && Fingerprint.member?(finding.fingerprint)
+    !(get_env(:skip) && (new_skip || legacy_skip)) &&
       meets_threshold?(severity)
   end
 
@@ -474,10 +476,41 @@ defmodule Sobelow do
       [] ->
         nil
 
-      fingerprints ->
+      new_fingerprints ->
+        # Get all findings from the log to match fingerprints to finding details
+        %{high: highs, medium: meds, low: lows} = FindingLog.log()
+        all_findings = highs ++ meds ++ lows
+
+        # Create a map of fingerprint -> finding for quick lookup
+        fingerprint_to_finding =
+          all_findings
+          |> Enum.map(fn {_details, finding} -> {finding.fingerprint, finding} end)
+          |> Map.new()
+
+        # Build skip entries in new format: type,filename,line,hash
+        skip_entries =
+          new_fingerprints
+          |> Enum.map(fn fingerprint ->
+            case Map.get(fingerprint_to_finding, fingerprint) do
+              %Finding{} = finding ->
+                # Get relative filename (remove project root)
+                filename =
+                  Utils.get_root()
+                  |> Utils.normalize_path()
+                  |> (&String.replace_prefix(finding.filename, &1, "")).()
+                  |> Utils.normalize_path()
+
+                "#{finding.type},#{filename}:#{finding.vuln_line_no},#{fingerprint}"
+              nil ->
+                # Fallback to old format if we can't find the finding
+                fingerprint
+            end
+          end)
+
+
         {:ok, iofile} = :file.open(cfile, [:append])
-        fingerprints = Enum.join(fingerprints, "\n")
-        :file.write(iofile, ["\n", fingerprints])
+        entries_str = Enum.join(skip_entries, "\n")
+        :file.write(iofile, ["\n", entries_str])
         :file.close(iofile)
     end
   end
@@ -493,8 +526,23 @@ defmodule Sobelow do
     end
   end
 
-  defp load_ignored_fingerprints({:ok, fingerprint}, iofile) do
-    to_string(fingerprint) |> String.trim() |> Fingerprint.put_ignore()
+  defp load_ignored_fingerprints({:ok, line}, iofile) do
+    line_str = to_string(line) |> String.trim()
+
+    # Parse line - could be old format (just hash) or new format (type,filename:line,hash)
+    fingerprint = case String.split(line_str, ",") do
+      [fingerprint] when fingerprint != "" ->
+        # Old format: just the fingerprint hash
+        fingerprint
+      [_type, _filename_line_no, fingerprint] when fingerprint != "" ->
+        # New format: type,filename,line,hash - extract just the hash
+        fingerprint
+      _ ->
+        # Invalid line, skip it
+        nil
+    end
+
+    if fingerprint, do: Fingerprint.put_ignore(fingerprint)
     :file.read_line(iofile) |> load_ignored_fingerprints(iofile)
   end
 
