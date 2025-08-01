@@ -487,7 +487,7 @@ defmodule Sobelow do
           |> Enum.map(fn {_details, finding} -> {finding.fingerprint, finding} end)
           |> Map.new()
 
-        # Build skip entries in new format: type,filename,line,hash
+        # Build skip entries in new format: type,filename_line_n,hash
         skip_entries =
           new_fingerprints
           |> Enum.map(fn fingerprint ->
@@ -502,7 +502,7 @@ defmodule Sobelow do
 
                 "#{finding.type},#{filename}:#{finding.vuln_line_no},#{fingerprint}"
               nil ->
-                # Fallback to old format if we can't find the finding
+                # Should not happen, each fingerprint should have a corresponding finding
                 fingerprint
             end
           end)
@@ -529,13 +529,13 @@ defmodule Sobelow do
   defp load_ignored_fingerprints({:ok, line}, iofile) do
     line_str = to_string(line) |> String.trim()
 
-    # Parse line - could be old format (just hash) or new format (type,filename:line,hash)
+    # Parse line - could be old format (just hash) or new format (type,filename_line_n,hash)
     fingerprint = case String.split(line_str, ",") do
       [fingerprint] when fingerprint != "" ->
         # Old format: just the fingerprint hash
         fingerprint
-      [_type, _filename_line_no, fingerprint] when fingerprint != "" ->
-        # New format: type,filename,line,hash - extract just the hash
+      [_type, _filename_line_n, fingerprint] when fingerprint != "" ->
+        # New format: type,filename_line_n,phash2 - extract phash2
         fingerprint
       _ ->
         # Invalid line, skip it
