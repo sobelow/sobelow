@@ -134,7 +134,7 @@ relative to the application root.
   line options. See [Configuration Files](#configuration-files) for more
   information.
 
-  * `--config` - Run Sobelow with configuration file. See [Configuration Files](#configuration-files)
+  * `--[no-]config` - Run Sobelow with or without configuration file. See [Configuration Files](#configuration-files)
   for more information.
 
   * `--mark-skip-all` - Mark all displayed findings as skippable.
@@ -170,10 +170,9 @@ when you first start out using this package - the generated configuration file
 will be populated with the default values for each option. (This helps in
 quickly incorporating this package into a pre-existing codebase.)
 
-Now if you want to run Sobelow with the saved configuration,
-you can run Sobelow with the `--config` flag.
-
-    $ mix sobelow --config
+The `.sobelow-conf` file is automatically used if detected. CLI switches will
+take precedence over options in the config file. You can also specify
+`--no-config` to prevent any config file settings being used if needed.
 
 ## False Positives
 Sobelow favors over-reporting versus under-reporting. As such,
@@ -226,7 +225,7 @@ defp aliases do
 end
 ```
 
-If you wish to use configuration files in an umbrella app, create a `.sobelow-conf` in each child application and use the `--config` flag.
+If you wish to use configuration files in an umbrella app, create a `.sobelow-conf` in each child application.
 
 ## Updates
 When scanning a project, Sobelow will occasionally check for
