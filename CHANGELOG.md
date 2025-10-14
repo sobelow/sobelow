@@ -1,8 +1,16 @@
 # Changelog
 
 ## v0.14.1 (Unreleased)
+  * Enhancements
+    * Implicitly use `.sobelow-conf` if detected in the root directory rather than
+      require `--config` switch. The `--no-config` switch is still supported to
+      prevent any settings from being read in from the file if needed.
+
   * Bug fixes
     * Handled extra config options for app releases in mix.exs
+    * Properly handle the use of CLI switches and config file settings in the same run.
+      These would previously clobber each other in unapparent ways leading to
+      confusing behavior. CLI switch take precedence.
 
 ## v0.14.0
   * Removed

@@ -31,6 +31,8 @@ jobs:
             otp: 27
           - elixir: "1.18.x"
             otp: 27
+            # We only care about formatting and warnings for the latest version of Elixir
+            checkFormatAndWarnings: true
 
     steps:
       - name: Setup Elixir
@@ -52,11 +54,11 @@ jobs:
         run: mix hex.audit
 
       - name: Check Formatting
-        if: ${{ matrix.elixir == '1.16.x' }} # we only care about formatting for latest version of Elixir
+        if: ${{ matrix.checkFormatAndWarnings }}
         run: mix format --check-formatted
 
       - name: Compiles w/o Warnings
-        if: ${{ matrix.elixir == '1.16.x' }} # we only care about warnings for latest version of Elixir
+        if: ${{ matrix.checkFormatAndWarnings }}
         run: mix compile --warnings-as-errors
 
       - name: Credo

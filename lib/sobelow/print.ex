@@ -25,7 +25,7 @@ defmodule Sobelow.Print do
   end
 
   def print_finding_metadata(%Finding{} = finding) do
-    if Sobelow.loggable?(finding.fingerprint, finding.confidence) do
+    if Sobelow.loggable?(finding, finding.confidence) do
       do_print_finding_metadata(finding)
     end
   end
@@ -41,7 +41,7 @@ defmodule Sobelow.Print do
   end
 
   def print_custom_finding_metadata(%Finding{} = finding, headers) do
-    if Sobelow.loggable?(finding.fingerprint, finding.confidence) do
+    if Sobelow.loggable?(finding, finding.confidence) do
       do_print_custom_finding_metadata(finding, headers)
     end
   end
@@ -65,7 +65,7 @@ defmodule Sobelow.Print do
   end
 
   defp print_compact_finding(finding, details) do
-    if Sobelow.loggable?(finding.fingerprint, finding.confidence) do
+    if Sobelow.loggable?(finding, finding.confidence) do
       do_print_compact_finding(details, finding.confidence)
     end
   end
@@ -89,7 +89,7 @@ defmodule Sobelow.Print do
   end
 
   defp print_flycheck_finding(finding, details) do
-    if Sobelow.loggable?(finding.fingerprint, finding.confidence) do
+    if Sobelow.loggable?(finding, finding.confidence) do
       do_print_flycheck_finding(details, finding.confidence)
     end
   end
