@@ -4,7 +4,7 @@
 [![Hex Docs](https://img.shields.io/badge/hex-docs-lightgreen.svg)](https://hexdocs.pm/sobelow/)
 [![Total Download](https://img.shields.io/hexpm/dt/sobelow.svg)](https://hex.pm/packages/sobelow)
 [![License](https://img.shields.io/hexpm/l/sobelow.svg)](https://hex.pm/packages/sobelow)
-[![Last Updated](https://img.shields.io/github/last-commit/nccgroup/sobelow.svg)](https://github.com/nccgroup/sobelow/commits/master)
+[![Last Updated](https://img.shields.io/github/last-commit/sobelow/sobelow.svg)](https://github.com/sobelow/sobelow/commits/main)
 
 Sobelow is a security-focused static analysis tool for Elixir & the
 Phoenix framework. For security researchers, it is a useful
@@ -212,7 +212,7 @@ This list, and other helpful information, can be found on the
 command line:
 
     $ mix help sobelow
-    
+
 ## Umbrella Apps
 
 In order to run Sobelow against all child apps within an umbrella app with a single command, you can add an alias for sobelow in your root `mix.exs` file:

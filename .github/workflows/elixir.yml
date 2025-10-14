@@ -31,6 +31,8 @@ jobs:
             otp: 27
           - elixir: "1.18.x"
             otp: 27
+          - elixir: "1.19.x"
+            otp: 28
             # We only care about formatting and warnings for the latest version of Elixir
             checkFormatAndWarnings: true
 
