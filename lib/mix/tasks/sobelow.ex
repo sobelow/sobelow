@@ -217,11 +217,23 @@ defmodule Mix.Tasks.Sobelow do
   def read_config_file(conf_file) do
     with {:ok, contents} <- File.read(conf_file),
          {:ok, opts} <- Code.string_to_quoted(contents),
-         true <- Keyword.keyword?(opts) do
+         {:ok, opts} <- validate_config(opts) do
       {:ok, opts}
     else
       _ -> {:error, config_file_error(conf_file)}
     end
+  end
+
+  # An empty (or comment-only) config file is a benign state — `touch
+  # .sobelow-conf`, a truncated write — and parses to an empty block rather than
+  # to a keyword list. Since v0.14.1 reads the file automatically, treating that
+  # as fatal would break scans over a file that asks for nothing. Contents we
+  # cannot make sense of are still an error, so a scan never silently runs with
+  # configuration the user believed was applied.
+  defp validate_config({:__block__, _, []}), do: {:ok, []}
+
+  defp validate_config(opts) do
+    if Keyword.keyword?(opts), do: {:ok, opts}, else: :error
   end
 
   defp load_config_file(conf_file) do
