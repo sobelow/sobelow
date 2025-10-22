@@ -135,8 +135,13 @@ defmodule Mix.Tasks.Sobelow do
     opts =
       if conf_file? do
         {:ok, file_opts} = File.read!(conf_file) |> Code.string_to_quoted()
-        # CLI args take precedence
-        Keyword.merge(file_opts, opts)
+        # Merge if the config file contains a valid keyword list (ie, isn't empty)
+        if Keyword.keyword?(file_opts) do
+          # CLI args take precedence
+          Keyword.merge(file_opts, opts)
+        else
+          opts
+        end
       else
         opts
       end
