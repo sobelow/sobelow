@@ -514,7 +514,7 @@ defmodule Sobelow do
         # Create a map of fingerprint -> finding for quick lookup
         fingerprint_to_finding =
           all_findings
-          |> Enum.map(fn {_details, finding} -> {finding.fingerprint, finding} end)
+          |> Enum.map(fn {_details, finding, _} -> {finding.fingerprint, finding} end)
           |> Map.new()
 
         # Build skip entries in new format: type,filename_line_n,hash
