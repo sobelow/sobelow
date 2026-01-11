@@ -540,6 +540,7 @@ defmodule Sobelow do
                 fingerprint
             end
           end)
+          |> Enum.sort()
 
         {:ok, iofile} = :file.open(cfile, [:append])
         entries_str = Enum.join(skip_entries, "\n")
