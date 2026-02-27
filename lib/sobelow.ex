@@ -342,6 +342,8 @@ defmodule Sobelow do
     case get_env(:router) do
       nil -> ""
       "" -> ""
+      :none -> ""
+      ":none" -> ""
       router -> Path.expand(router)
     end
   end
@@ -472,7 +474,9 @@ defmodule Sobelow do
     please use the `--router` flag to specify the router's location.
     """
 
-    IO.puts(:stderr, message)
+    if get_env(:router) not in [":none", :none] do
+      IO.puts(:stderr, message)
+    end
     ignored = get_env(:ignored)
 
     Application.put_env(
