@@ -111,6 +111,34 @@ defmodule Sobelow.Config do
     acc
   end
 
+  def get_pipelines_with_skips(filepath) do
+    ast = Parse.ast(filepath)
+
+    {_, acc} =
+      Macro.prewalk(ast, [], fn
+        {:@, _, [{:sobelow_skip, _, [skips]}]} = ast, acc ->
+          {ast, [{:skip, skips} | acc]}
+
+        {:pipeline, _, _} = ast, acc ->
+          {ast, [{:pipeline, ast} | acc]}
+
+        ast, acc ->
+          {ast, acc}
+      end)
+
+    combine_pipeline_skips(acc)
+  end
+
+  defp combine_pipeline_skips([]), do: []
+
+  defp combine_pipeline_skips([{:pipeline, pipeline}, {:skip, skips} | rest]),
+    do: [{pipeline, skips} | combine_pipeline_skips(rest)]
+
+  defp combine_pipeline_skips([{:pipeline, pipeline} | rest]),
+    do: [{pipeline, []} | combine_pipeline_skips(rest)]
+
+  defp combine_pipeline_skips([{:skip, _skips} | rest]), do: combine_pipeline_skips(rest)
+
   def get_plug_list(block) do
     case block do
       {:__block__, _, list} -> list

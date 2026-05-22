@@ -27,13 +27,20 @@ defmodule Sobelow.Config.CSRF do
   def run(router) do
     finding = Finding.init(@finding_type, Utils.normalize_path(router))
 
-    Config.get_pipelines(router)
+    Config.get_pipelines_with_skips(router)
+    |> Stream.reject(&skipped?/1)
+    |> Stream.map(fn {pipeline, _skips} -> pipeline end)
     |> Stream.filter(&vuln_pipeline?/1)
     |> Enum.each(&add_finding(&1, finding))
   end
 
   defp vuln_pipeline?(pipeline) do
     Config.vuln_pipeline?(pipeline, :csrf)
+  end
+
+  defp skipped?({_pipeline, skips}) do
+    skip_mods = Enum.map(skips, &Sobelow.get_mod/1)
+    Sobelow.Config in skip_mods or __MODULE__ in skip_mods
   end
 
   defp add_finding({:pipeline, _, [pipeline_name, _]} = pipeline, finding) do
