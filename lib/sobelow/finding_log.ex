@@ -112,7 +112,7 @@ defmodule Sobelow.FindingLog do
 
     # 1) We got a module and exports id/0 ─ call it via apply/3
     rule_id =
-      if is_atom(mod_struct) and
+      if mod_struct != nil and
            Code.ensure_loaded?(mod_struct) and
            function_exported?(mod_struct, :id, 0) do
         apply(mod_struct, :id, [])
