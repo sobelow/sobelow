@@ -291,7 +291,7 @@ defmodule Sobelow.Parse do
 
   defp contains_module?(ast, module) do
     {_, acc} = Macro.prewalk(ast, [], &contains_module(&1, &2, module))
-    if length(acc) > 0, do: true, else: false
+    acc != []
   end
 
   defp contains_module({{:., _, [{:__aliases__, _, module}, _]}, _, _} = ast, acc, module) do
