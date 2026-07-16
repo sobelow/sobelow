@@ -17,14 +17,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - elixir: "1.12.x"
-            otp: 24
-          - elixir: "1.13.x"
-            otp: 25.1
-          - elixir: "1.14.x"
-            otp: 25.1
-          - elixir: "1.15.x"
-            otp: 26.0
           - elixir: "1.16.x"
             otp: 26.2
           - elixir: "1.17.x"
@@ -33,6 +25,8 @@ jobs:
             otp: 27
           - elixir: "1.19.x"
             otp: 28
+          - elixir: "1.20.x"
+            otp: 29
             # We only care about formatting and warnings for the latest version of Elixir
             checkFormatAndWarnings: true
 
