@@ -13,13 +13,6 @@ defmodule Sobelow.Mixfile do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
-      preferred_cli_env: [
-        coveralls: :test,
-        "coveralls.detail": :test,
-        "coveralls.post": :test,
-        "coveralls.html": :test,
-        "coveralls.cobertura": :test
-      ],
       package: package(),
       description: "Security-focused static analysis for Elixir & the Phoenix framework",
       name: "Sobelow",
@@ -32,6 +25,18 @@ defmodule Sobelow.Mixfile do
 
   def application do
     [extra_applications: [:logger, :eex, :inets]]
+  end
+
+  def cli do
+    [
+      preferred_envs: [
+        coveralls: :test,
+        "coveralls.detail": :test,
+        "coveralls.post": :test,
+        "coveralls.html": :test,
+        "coveralls.cobertura": :test
+      ]
+    ]
   end
 
   defp deps do
