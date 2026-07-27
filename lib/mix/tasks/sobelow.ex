@@ -22,7 +22,7 @@ defmodule Mix.Tasks.Sobelow do
   * `--strict` - Exit when bad syntax is encountered
   * `--mark-skip-all` - Mark all printed findings as skippable
   * `--clear-skip` - Clear configuration added by `--mark-skip-all`
-  * `--skip` - Skip functions flagged with `#sobelow_skip` or tagged with `--mark-skip-all`
+  * `--skip` - Skip functions/Phoenix pipelines flagged with `#sobelow_skip` or tagged with `--mark-skip-all`
   * `--router` - Specify router location
   * `--exit` - Return non-zero exit status
   * `--threshold` - Only return findings at or above a given confidence level

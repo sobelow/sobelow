@@ -77,6 +77,47 @@ defmodule Sobelow.Parse do
     acc
   end
 
+  @doc false
+  # Collects `pipeline` macros with any immediately preceding `@sobelow_skip`
+  # attributes (converted from `# sobelow_skip` comments when `--skip` is set).
+  # Phoenix router pipelines are macros, not `def`/`defp`, so the normal
+  # function-level skip association does not apply to them.
+  def get_pipelines_with_skips(ast) do
+    {_, acc} = Macro.prewalk(ast, [], &collect_pipelines_with_skips/2)
+    acc
+  end
+
+  defp collect_pipelines_with_skips({:__block__, meta, stmts}, acc) when is_list(stmts) do
+    pipelines = associate_skips_with_pipelines(stmts)
+    {{:__block__, meta, stmts}, acc ++ pipelines}
+  end
+
+  # A module whose only expression is a pipeline has no surrounding `__block__`.
+  defp collect_pipelines_with_skips(
+         {:defmodule, meta, [alias_ast, [do: {:pipeline, _, _} = pipeline]]},
+         acc
+       ) do
+    {{:defmodule, meta, [alias_ast, [do: pipeline]]}, acc ++ [{pipeline, []}]}
+  end
+
+  defp collect_pipelines_with_skips(ast, acc), do: {ast, acc}
+
+  defp associate_skips_with_pipelines(statements) do
+    {pipelines, _pending_skips} =
+      Enum.reduce(statements, {[], []}, fn
+        {:@, _, [{:sobelow_skip, _, [skips]}]}, {acc, pending} when is_list(skips) ->
+          {acc, pending ++ skips}
+
+        {:pipeline, _, _} = pipeline, {acc, pending} ->
+          {[{pipeline, pending} | acc], []}
+
+        _, {acc, _pending} ->
+          {acc, []}
+      end)
+
+    Enum.reverse(pipelines)
+  end
+
   def get_meta_funs({:@, _, [{:sobelow_skip, _, _}]} = ast, acc) do
     if Sobelow.get_env(:skip) do
       {ast, Map.update!(acc, :def_funs, &[ast | &1])}

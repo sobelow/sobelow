@@ -106,10 +106,32 @@ defmodule Sobelow.Config do
   # Config utils
 
   def get_pipelines(filepath) do
-    ast = Parse.ast(filepath)
-    {_, acc} = Macro.prewalk(ast, [], &Parse.get_funs_of_type(&1, &2, :pipeline))
-    acc
+    filepath
+    |> get_pipelines_with_skips()
+    |> Enum.map(fn {pipeline, _skips} -> pipeline end)
   end
+
+  def get_unskipped_pipelines(filepath, check_mod) do
+    get_pipelines_with_skips(filepath)
+    |> Enum.reject(&skipped_pipeline?(&1, check_mod))
+    |> Enum.map(fn {pipeline, _skips} -> pipeline end)
+  end
+
+  defp get_pipelines_with_skips(filepath) do
+    filepath
+    |> Parse.ast()
+    |> Parse.get_pipelines_with_skips()
+  end
+
+  defp skipped_pipeline?({_pipeline, skips}, check_mod) when is_list(skips) do
+    Sobelow.get_env(:skip) &&
+      Enum.any?(skips, fn skip ->
+        mod = Sobelow.get_mod(skip)
+        mod == check_mod || mod == __MODULE__
+      end)
+  end
+
+  defp skipped_pipeline?(_, _), do: false
 
   def get_plug_list(block) do
     case block do

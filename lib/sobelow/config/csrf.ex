@@ -16,6 +16,14 @@ defmodule Sobelow.Config.CSRF do
   CSRF checks can be ignored with the following command:
 
       $ mix sobelow -i Config.CSRF
+
+  False positives can be ignored at the pipeline level by
+  adding a `# sobelow_skip` comment:
+
+      # sobelow_skip ["Config.CSRF"]
+      pipeline :api do
+        ...
+      end
   """
   alias Sobelow.Config
 
@@ -27,7 +35,7 @@ defmodule Sobelow.Config.CSRF do
   def run(router) do
     finding = Finding.init(@finding_type, Utils.normalize_path(router))
 
-    Config.get_pipelines(router)
+    Config.get_unskipped_pipelines(router, __MODULE__)
     |> Stream.filter(&vuln_pipeline?/1)
     |> Enum.each(&add_finding(&1, finding))
   end

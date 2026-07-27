@@ -26,6 +26,14 @@ defmodule Sobelow.Config.CSP do
   Content-Security-Policy checks can be ignored with the following command:
 
       $ mix sobelow -i Config.CSP
+
+  False positives can be ignored at the pipeline level by
+  adding a `# sobelow_skip` comment:
+
+      # sobelow_skip ["Config.CSP"]
+      pipeline :browser do
+        ...
+      end
   """
   alias Sobelow.Config
 
@@ -38,7 +46,7 @@ defmodule Sobelow.Config.CSP do
     meta_file = Parse.ast(router) |> Parse.get_meta_funs()
     finding = Finding.init(@finding_type, Utils.normalize_path(router))
 
-    Config.get_pipelines(router)
+    Config.get_unskipped_pipelines(router, __MODULE__)
     |> Enum.map(&check_vuln_pipeline(&1, meta_file))
     |> Enum.each(&maybe_add_finding(&1, finding))
   end
