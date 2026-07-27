@@ -189,6 +189,17 @@ def vuln_func(...) do
 end
 ```
 
+The same syntax works for Phoenix router pipelines, which is
+useful for configuration findings such as `Config.CSRF` and
+`Config.Headers`:
+
+```elixir
+# sobelow_skip ["Config.Headers"]
+pipeline :browser do
+  ...
+end
+```
+
 When integrating Sobelow into a new project, there can be a
 large number of false positives. To mark all printed findings
 as false positives, run sobelow with the `--mark-skip-all` flag.
@@ -198,10 +209,9 @@ Sobelow with the `--skip` flag.
 
     $ mix sobelow --skip
 
-While `# sobelow_skip` comments can only mark function-level
-findings (and so cannot be used to skip configuration issues),
-the `--mark-skip-all` flag can be used to skip any finding
-type.
+While `# sobelow_skip` comments mark function- and pipeline-level
+findings, the `--mark-skip-all` flag can be used to skip any
+finding type.
 
 ## Modules
 Findings categories are broken up into modules. These modules

@@ -29,4 +29,18 @@ defmodule SobelowTest.Config.CSRFTest do
     assert Config.get_pipelines(router)
            |> Enum.any?(&Config.vuln_pipeline?(&1, :csrf))
   end
+
+  test "honors sobelow_skip on vulnerable pipelines" do
+    Application.put_env(:sobelow, :skip, true)
+    on_exit(fn -> Application.delete_env(:sobelow, :skip) end)
+
+    router = "./test/fixtures/csrf/skipped_router.ex"
+
+    vulnerable =
+      Config.get_unskipped_pipelines(router, Sobelow.Config.CSRF)
+      |> Enum.filter(&Config.vuln_pipeline?(&1, :csrf))
+
+    # :browser is skipped, :other is not
+    assert [{:pipeline, _, [:other, _]}] = vulnerable
+  end
 end
