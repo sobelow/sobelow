@@ -36,6 +36,12 @@
     * Fixed a string-interpolation typo that rendered dot-access variables as
       `conn.${atom_to_string(field)}`.
     * `.sobelow-conf` keys are now genuinely sorted alphabetically.
+    * `# sobelow_skip` comments are no longer thrown away over whitespace. The
+      pattern demanded exactly one space after the `#` and exactly one before
+      the list, so `# sobelow_skip["XSS.Raw"]`, `#  sobelow_skip ["XSS.Raw"]`,
+      and `# sobelow_skip [ "XSS.Raw" ]` were all ignored — silently, and
+      indistinguishably from a skip that had simply not applied. Spacing around
+      the marker, inside the list, and around commas is now irrelevant.
   * Enhancements
     * Added `--no-router`, for scanning a project that has no Phoenix router.
       Sobelow warned that it could not find one and offered no way to silence it,
@@ -57,6 +63,11 @@
       in place. Listing the parent `Config` module skips every Config check on
       that pipeline. As with function-level skips, this only takes effect under
       `--skip`.
+    * A `# sobelow_skip` comment that cannot be read now warns on stderr, naming
+      the file and line, instead of being dropped without a word. Single quotes
+      and a list broken across several comment lines are still not accepted, but
+      they now say so rather than leaving you to wonder why the finding came
+      back.
     * `--private` now skips the version check entirely rather than still writing
       the cache file. It makes no network requests and touches no files outside
       the scanned project.

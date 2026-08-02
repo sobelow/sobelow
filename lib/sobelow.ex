@@ -432,7 +432,9 @@ defmodule Sobelow do
   end
 
   defp get_file_meta(filename) do
-    ast = Parse.ast(filename)
+    # The one place every file in the project is read exactly once, so the place
+    # to report a `# sobelow_skip` comment we could not make sense of.
+    ast = Parse.ast_with_skip_warnings(filename)
     meta_funs = Parse.get_meta_funs(ast)
     def_funs = meta_funs.def_funs
     use_funs = meta_funs.use_funs

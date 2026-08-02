@@ -38,7 +38,28 @@ defmodule Sobelow.Parse do
   ]
 
   def ast(filepath) do
-    case Code.string_to_quoted(read_file(filepath), columns: true, file: filepath) do
+    filepath
+    |> read_file()
+    |> parse(filepath)
+  end
+
+  @doc false
+  # `ast/1`, plus a warning for any `# sobelow_skip` comment that could not be
+  # read. An unrecognised comment is otherwise dropped in silence, which looks
+  # exactly like a skip that did not apply — the two are indistinguishable to
+  # someone whose comment simply has a stray space in it.
+  #
+  # Only for the one pass over every file in the project. `read_file/1` runs six
+  # times for a router, which is where pipeline skips live, so warning from
+  # there would repeat itself.
+  def ast_with_skip_warnings(filepath) do
+    content = read_file(filepath)
+    warn_unrecognised_skips(filepath, content)
+    parse(content, filepath)
+  end
+
+  defp parse(content, filepath) do
+    case Code.string_to_quoted(content, columns: true, file: filepath) do
       {:ok, ast} ->
         ast
 
@@ -80,18 +101,48 @@ defmodule Sobelow.Parse do
   def format_location(line) when is_integer(line), do: "#{line}:"
   def format_location(_), do: ""
 
+  # A `# sobelow_skip` comment, rewritten into a module attribute so it survives
+  # into the AST. Whitespace is deliberately loose: the spacing around the
+  # marker and inside the list carries no meaning, and being strict about it
+  # only produced comments that looked right and did nothing.
+  @skip_comment ~r/#\s*sobelow_skip\s*(\[\s*"[^"]+"(?:\s*,\s*"[^"]+")*\s*,?\s*\])/
+
+  # Anything that looks like an attempt at one. Requiring the bracket keeps
+  # prose that merely mentions `# sobelow_skip` from being flagged.
+  @skip_comment_attempt ~r/#\s*sobelow_skip\s*\[/
+
   defp read_file(filepath) do
     content = File.read!(filepath)
 
     if Sobelow.get_env(:skip) do
-      String.replace(
-        content,
-        ~r/#\s?sobelow_skip (\[(\"[^"]+\"(,|, )?)+\])/,
-        "@sobelow_skip \\g{1}"
-      )
+      String.replace(content, @skip_comment, "@sobelow_skip \\g{1}")
     else
       content
     end
+  end
+
+  # Runs against the rewritten content, so every comment that was understood has
+  # already become an attribute and whatever still reads as a skip comment is
+  # one we could not parse.
+  defp warn_unrecognised_skips(filepath, content) do
+    if Sobelow.get_env(:skip) do
+      content
+      |> String.split("\n")
+      |> Enum.with_index(1)
+      |> Enum.each(fn {line, line_no} ->
+        if Regex.match?(@skip_comment_attempt, line),
+          do: warn_unrecognised_skip(filepath, line_no)
+      end)
+    end
+  end
+
+  defp warn_unrecognised_skip(filepath, line_no) do
+    IO.puts(
+      :stderr,
+      "#{filepath}:#{line_no}: could not read this `# sobelow_skip` comment, so it was " <>
+        "ignored. Expected a list of double-quoted checks, " <>
+        ~s(for example: # sobelow_skip ["Config.CSRF"])
+    )
   end
 
   def get_meta_funs(filepath) when is_binary(filepath) do
