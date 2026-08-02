@@ -149,6 +149,21 @@ defmodule SobelowTest.MixTaskTest do
       assert env.exit_on == false
       assert env.ignored == []
     end
+
+    # The original symptom was the task aborting outright, so cover the whole
+    # option-parsing path and not just `read_config_file/1`. An empty file must
+    # leave the defaults intact rather than halt.
+    @tag :tmp_dir
+    test "an empty file leaves the defaults intact", %{tmp_dir: tmp_dir} do
+      File.write!(Path.join(tmp_dir, ".sobelow-conf"), "")
+
+      env = parse(["--root", tmp_dir])
+
+      assert env.format == "txt"
+      assert env.threshold == :low
+      assert env.exit_on == false
+      assert env.ignored == []
+    end
   end
 
   describe "read_config_file/1" do
@@ -181,6 +196,46 @@ defmodule SobelowTest.MixTaskTest do
     test "reports an error for a missing file", %{tmp_dir: tmp_dir} do
       assert {:error, _message} =
                Mix.Tasks.Sobelow.read_config_file(Path.join(tmp_dir, "nope"))
+    end
+
+    # A file that asks for nothing is not a misconfiguration. `.sobelow-conf` is
+    # read automatically, so treating these as fatal broke scans over a file that
+    # a `touch` or a truncated write was enough to produce.
+    test "treats an empty file as no options", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, "")
+
+      assert Mix.Tasks.Sobelow.read_config_file(path) == {:ok, []}
+    end
+
+    test "treats a whitespace-only file as no options", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, "\n\n   \n")
+
+      assert Mix.Tasks.Sobelow.read_config_file(path) == {:ok, []}
+    end
+
+    test "treats a comment-only file as no options", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, "# no options yet\n")
+
+      assert Mix.Tasks.Sobelow.read_config_file(path) == {:ok, []}
+    end
+
+    # Empty is tolerated, but anything we cannot interpret must still fail loudly
+    # rather than let a scan run with settings the user believed were applied.
+    test "still rejects a parseable term that is merely falsy", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, "nil")
+
+      assert {:error, _message} = Mix.Tasks.Sobelow.read_config_file(path)
+    end
+
+    test "still rejects a non-keyword list", %{tmp_dir: tmp_dir} do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, ~s(["XSS.Raw"]))
+
+      assert {:error, _message} = Mix.Tasks.Sobelow.read_config_file(path)
     end
   end
 end

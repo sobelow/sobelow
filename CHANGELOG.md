@@ -19,6 +19,13 @@
     * A malformed `.sobelow-conf` now produces an actionable message instead of a
       raw `MatchError` stacktrace. This mattered more since v0.14.1 began reading
       the file automatically.
+    * An empty, whitespace-only, or comment-only `.sobelow-conf` is now read as
+      no options rather than aborting the scan. Such a file parses to an empty
+      block instead of a keyword list, so it originally crashed with a
+      `FunctionClauseError` and then, once that was fixed, exited 1 with a
+      configuration error. Since the file is read automatically, a stray
+      `touch .sobelow-conf` or a truncated write was enough to break every scan
+      in a project. Contents that cannot be interpreted are still an error.
     * `--save-config` now stores `ignore_files` relative to the project root.
       Absolute paths were previously baked into `.sobelow-conf`, breaking the
       committed file on every other machine and in CI.
