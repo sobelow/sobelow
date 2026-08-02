@@ -15,7 +15,7 @@ defmodule SobelowTest.UtilsTest do
   end
 
   test "Utils.get_app_name/1 handles releases config correctly for app named :test" do
-    assert Sobelow.Utils.get_app_name("./test/fixtures/utils/mix_with_releases_test.exs") ==
+    assert Sobelow.Utils.get_app_name("./test/fixtures/utils/mix_with_releases_test_app.exs") ==
              "test"
   end
 end

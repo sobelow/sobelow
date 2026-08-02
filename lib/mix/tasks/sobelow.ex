@@ -134,9 +134,8 @@ defmodule Mix.Tasks.Sobelow do
 
     opts =
       if conf_file? do
-        {:ok, file_opts} = File.read!(conf_file) |> Code.string_to_quoted()
         # CLI args take precedence
-        Keyword.merge(file_opts, opts)
+        Keyword.merge(load_config_file(conf_file), opts)
       else
         opts
       end
@@ -212,6 +211,41 @@ defmodule Mix.Tasks.Sobelow do
 
   def set_env(key, value) do
     Application.put_env(:sobelow, key, value)
+  end
+
+  @doc false
+  def read_config_file(conf_file) do
+    with {:ok, contents} <- File.read(conf_file),
+         {:ok, opts} <- Code.string_to_quoted(contents),
+         true <- Keyword.keyword?(opts) do
+      {:ok, opts}
+    else
+      _ -> {:error, config_file_error(conf_file)}
+    end
+  end
+
+  defp load_config_file(conf_file) do
+    case read_config_file(conf_file) do
+      {:ok, opts} ->
+        opts
+
+      {:error, message} ->
+        Sobelow.IO.error(message)
+        System.halt(1)
+    end
+  end
+
+  defp config_file_error(conf_file) do
+    """
+    Could not read #{conf_file}.
+
+    The configuration file must contain a single keyword list, for example:
+
+        [exit: :low, format: "txt", ignore: ["XSS.Raw"], verbose: false]
+
+    Regenerate it with `mix sobelow --save-config`, or pass `--no-config` to
+    ignore it for this run.
+    """
   end
 
   defp get_opts(opts, root) do

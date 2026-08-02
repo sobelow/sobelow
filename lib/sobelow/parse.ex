@@ -42,15 +42,43 @@ defmodule Sobelow.Parse do
       {:ok, ast} ->
         ast
 
-      {:error, {line, err, _}} ->
-        if Application.get_env(:sobelow, :strict) do
-          IO.puts(:stderr, "#{filepath}:#{line}: #{err}")
-          System.halt(2)
-        else
-          {}
-        end
+      {:error, {location, err, token}} ->
+        syntax_error(filepath, location, err, token)
     end
   end
+
+  defp syntax_error(filepath, location, err, token) do
+    if Application.get_env(:sobelow, :strict) do
+      message = "#{filepath}:#{format_location(location)} #{format_error(err, token)}"
+      IO.puts(:stderr, message)
+      System.halt(2)
+    else
+      {}
+    end
+  end
+
+  @doc false
+  # Some errors are reported as a `{prefix, suffix}` pair around the offending token.
+  def format_error({prefix, suffix}, token), do: "#{prefix}#{token}#{suffix}"
+  def format_error(err, token) when is_binary(err), do: "#{err}#{token}"
+  def format_error(err, token), do: "#{inspect(err)}#{token}"
+
+  @doc false
+  # Elixir >= 1.13 reports the error location as a keyword list of metadata.
+  # Older versions report a bare line number.
+  def format_location(location) when is_list(location) do
+    line = Keyword.get(location, :line)
+    column = Keyword.get(location, :column)
+
+    case {line, column} do
+      {nil, _} -> ""
+      {line, nil} -> "#{line}:"
+      {line, column} -> "#{line}:#{column}:"
+    end
+  end
+
+  def format_location(line) when is_integer(line), do: "#{line}:"
+  def format_location(_), do: ""
 
   defp read_file(filepath) do
     content = File.read!(filepath)
@@ -108,8 +136,24 @@ defmodule Sobelow.Parse do
   def get_meta_funs(ast, acc), do: {ast, acc}
 
   def get_meta_template_funs(filepath) do
-    ast = EEx.compile_string(File.read!(filepath))
-    get_meta_template_fun(ast)
+    case template_ast(filepath) do
+      {:ok, ast} -> get_meta_template_fun(ast)
+      :error -> %{raw: [], ast: {}}
+    end
+  end
+
+  # A template we cannot parse should be skipped like an unparseable `.ex` file,
+  # not abort the whole scan.
+  defp template_ast(filepath) do
+    {:ok, EEx.compile_string(File.read!(filepath), file: filepath)}
+  rescue
+    e in EEx.SyntaxError ->
+      if Application.get_env(:sobelow, :strict) do
+        IO.puts(:stderr, Exception.message(e))
+        System.halt(2)
+      else
+        :error
+      end
   end
 
   def get_meta_template_fun(ast) do
@@ -238,7 +282,7 @@ defmodule Sobelow.Parse do
 
   # This handles normalizations for the case where the finding is a dot-access tuple
   def normalize_finding({finding, {:., _, [{var, _, _}, field]}}) when is_atom(field) do
-    {finding, "#{atom_to_string(var)}.${atom_to_string(field)}"}
+    {finding, "#{atom_to_string(var)}.#{atom_to_string(field)}"}
   end
 
   def normalize_finding({finding, opt}) do
@@ -291,7 +335,7 @@ defmodule Sobelow.Parse do
 
   defp contains_module?(ast, module) do
     {_, acc} = Macro.prewalk(ast, [], &contains_module(&1, &2, module))
-    if length(acc) > 0, do: true, else: false
+    acc != []
   end
 
   defp contains_module({{:., _, [{:__aliases__, _, module}, _]}, _, _} = ast, acc, module) do

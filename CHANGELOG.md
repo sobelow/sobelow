@@ -1,5 +1,71 @@
 # Changelog
 
+## Unreleased
+  * Bug fixes
+    * `Config.Secrets` no longer crashes the scan when a secret is written as
+      anything other than a plain double-quoted string. Heredoc values and values
+      containing escaped quotes previously raised a `MatchError` and aborted the
+      entire run. These secrets are now reported, using the line of the enclosing
+      `config` call.
+    * A corrupt or unreadable version-check cache file no longer aborts the scan.
+      Sobelow previously printed "This does not appear to be a Phoenix application"
+      and exited **0** — a CI gate could pass having scanned nothing.
+    * `--strict` now reports syntax errors instead of raising. It has been broken
+      since Elixir 1.13 changed the error shape returned by
+      `Code.string_to_quoted/2`. Errors are now reported as `file:line:column:`.
+    * A template that cannot be parsed is now skipped (or reported under
+      `--strict`) rather than aborting the scan with an `EEx.SyntaxError`. The
+      error now names the offending template instead of `nofile`.
+    * A malformed `.sobelow-conf` now produces an actionable message instead of a
+      raw `MatchError` stacktrace. This mattered more since v0.14.1 began reading
+      the file automatically.
+    * `--save-config` now stores `ignore_files` relative to the project root.
+      Absolute paths were previously baked into `.sobelow-conf`, breaking the
+      committed file on every other machine and in CI.
+    * `Config.Secrets` now reports the line of the secret itself when a `config`
+      call spans multiple lines. The line search compared a tuple against an
+      integer, so it never worked as intended.
+    * An unwritable `~/.sobelow` no longer fails a scan.
+    * Fixed a string-interpolation typo that rendered dot-access variables as
+      `conn.${atom_to_string(field)}`.
+    * `.sobelow-conf` keys are now genuinely sorted alphabetically.
+  * Enhancements
+    * `--private` now skips the version check entirely rather than still writing
+      the cache file. It makes no network requests and touches no files outside
+      the scanned project.
+    * `SOBELOW_HOME` is now documented, and is treated as the *directory* holding
+      the version-check cache.
+    * Added `usage-rules.md`, following the `usage_rules` convention, so projects
+      using AI coding assistants can pull Sobelow's guidance into their agent's
+      context with `mix usage_rules.sync`. It is shipped in the Hex package.
+    * Added `AGENTS.md` documenting the checker-module contract for contributors.
+    * Added support for Elixir v1.20.x.
+  * Testing
+    * Added an end-to-end test harness (`Sobelow.ScanCase`) that runs full scans
+      against fixture applications under `test/fixtures/apps`, plus regression
+      coverage for every bug above. Line coverage went from 29% to 67%.
+    * Added coverage for CLI option parsing, `.sobelow-conf` precedence, `--exit`
+      and `--threshold` mapping, and the `json`/`sarif`/`quiet`/`txt` renderers.
+  * Misc
+    * Replaced the deprecated `:preferred_cli_env` project key with `def cli`.
+    * Bumped `credo` to `~> 1.7.19`; 1.7.12 crashed on Elixir 1.20.
+    * Removed a dead Elixir 1.5 version guard and fixed an always-true conditional
+      in the SARIF renderer.
+
+### Upgrade notes
+
+  * **`Config.Secrets` line numbers may change** for `config` calls that span
+    multiple lines, and for files where the same secret value appears more than
+    once. Finding fingerprints include the line number, so any affected
+    `.sobelow-skips` entries will stop matching and those findings will resurface.
+    Re-run `mix sobelow --mark-skip-all` if you rely on a committed skip file.
+  * **Secrets that previously crashed the scan are now reported.** If a heredoc or
+    escaped-quote secret exists in your config, you will see new findings where the
+    scan previously failed outright.
+  * **`SOBELOW_HOME` semantics changed** from "path to the cache file" to "directory
+    holding the cache file". The previous behaviour raised a `MatchError` for the
+    natural usage, so this is unlikely to affect anyone.
+
 ## v0.14.1
   * Enhancements
     * Implicitly use `.sobelow-conf` if detected in the root directory rather than

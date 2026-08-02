@@ -112,14 +112,23 @@ defmodule Sobelow.Config.Secrets do
     end
   end
 
+  # Locates the line/column of the secret value itself, which may differ from the
+  # line the enclosing `config` call starts on.
+  #
+  # The secret is located by substituting its literal source representation. That
+  # heuristic only matches plainly double-quoted strings, so it legitimately finds
+  # nothing for heredocs, escaped quotes, sigils, and the like. In that case we fall
+  # back to the line of the `config` call rather than failing the scan.
   defp get_vuln_line(file, config_line_no, secret) do
     {_, secrets} =
       File.read!(file)
       |> String.replace("\"#{secret}\"", "@sobelow_secret")
-      |> Code.string_to_quoted()
+      |> Code.string_to_quoted(columns: true)
       |> Macro.prewalk([], &get_vuln_line/2)
 
-    Enum.find(secrets, config_line_no, &(&1 > config_line_no))
+    secrets
+    |> Enum.sort()
+    |> Enum.find({config_line_no, 0}, fn {line_no, _col} -> line_no >= config_line_no end)
   end
 
   defp get_vuln_line({:@, _, [{:sobelow_secret, _, _}]} = ast, acc) do

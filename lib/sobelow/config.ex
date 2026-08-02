@@ -81,9 +81,8 @@ defmodule Sobelow.Config do
   end
 
   defp want_to_scan?(conf, ignored_files) do
-    if Path.extname(conf) === ".exs" && !Enum.member?(@skip_files, Path.basename(conf)) &&
-         !Enum.member?(ignored_files, Path.expand(conf)),
-       do: conf
+    Path.extname(conf) === ".exs" && !Enum.member?(@skip_files, Path.basename(conf)) &&
+      !Enum.member?(ignored_files, Path.expand(conf))
   end
 
   defp relative_path(path, root) do
