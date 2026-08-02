@@ -151,7 +151,7 @@ defmodule Sobelow.Parse do
   end
 
   def get_meta_funs(ast) do
-    init_acc = %{def_funs: [], use_funs: [], module_attrs: []}
+    init_acc = %{def_funs: [], use_funs: [], import_funs: [], module_attrs: []}
     {_, acc} = Macro.prewalk(ast, init_acc, &get_meta_funs(&1, &2))
 
     # A `@sobelow_skip` that annotates a pipeline has already been consumed by
@@ -262,6 +262,10 @@ defmodule Sobelow.Parse do
 
   def get_meta_funs({:use, _, _} = ast, acc) do
     {ast, Map.update!(acc, :use_funs, &[ast | &1])}
+  end
+
+  def get_meta_funs({:import, _, _} = ast, acc) do
+    {ast, Map.update!(acc, :import_funs, &[ast | &1])}
   end
 
   def get_meta_funs({:@, _, [attr | _]} = ast, acc) do

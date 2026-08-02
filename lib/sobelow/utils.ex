@@ -19,6 +19,31 @@ defmodule Sobelow.Utils do
   def has_use_type?([_ | t], type), do: has_use_type?(t, type)
   def has_use_type?(_, _), do: false
 
+  @doc """
+  Whether `uses` contains a `use` of `module`, given as alias segments.
+
+      uses?(use_funs, [:Ecto, :Repo])
+  """
+  def uses?(uses, module), do: references?(uses, :use, module)
+
+  @doc """
+  Whether `imports` contains an `import` of `module`, given as alias segments.
+  """
+  def imports?(imports, module), do: references?(imports, :import, module)
+
+  defp references?(nodes, kind, module) do
+    Enum.any?(nodes, fn
+      {^kind, _, [{:__aliases__, _, aliases} | _]} -> alias_of?(aliases, module)
+      _ -> false
+    end)
+  end
+
+  # The module may have been aliased first, so only the tail of its name appears:
+  # `alias Ecto.Adapters.SQL; import SQL` gives `[:SQL]`. Matching on a suffix
+  # accepts that without accepting an unrelated `Some.Other.SQL`.
+  defp alias_of?([], _module), do: false
+  defp alias_of?(aliases, module), do: Enum.take(module, -length(aliases)) == aliases
+
   def normalize_path(filename) do
     filename
     |> Path.expand("")
