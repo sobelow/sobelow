@@ -131,13 +131,24 @@ defmodule Sobelow.ScanCase do
 
   Used for fixtures that must not be committed in a broken state, because
   `mix format --check-formatted` covers `test/**`.
+
+  If the path is an existing, committed fixture, its original contents are
+  restored afterwards rather than deleted, so a test can vary a checked-in
+  fixture without destroying it.
   """
   def temp_fixture_file(fixture, relative_path, contents) do
     path = Path.join(fixture_path(fixture), relative_path)
+    original = File.read(path)
 
     File.mkdir_p!(Path.dirname(path))
     File.write!(path, contents)
-    ExUnit.Callbacks.on_exit(fn -> File.rm_rf!(path) end)
+
+    ExUnit.Callbacks.on_exit(fn ->
+      case original do
+        {:ok, original} -> File.write!(path, original)
+        {:error, _} -> File.rm_rf!(path)
+      end
+    end)
 
     path
   end

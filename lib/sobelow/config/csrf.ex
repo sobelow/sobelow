@@ -24,6 +24,9 @@ defmodule Sobelow.Config.CSRF do
       pipeline :api do
         ...
       end
+
+  This requires the `--skip` flag. Listing the parent `Config`
+  module instead skips every Config check on that pipeline.
   """
   alias Sobelow.Config
 

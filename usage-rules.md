@@ -46,9 +46,9 @@ Use `--threshold low|medium|high` to filter the report by confidence.
 
 There are two mechanisms and they are not interchangeable.
 
-**`# sobelow_skip` comments** mark a *specific function*. They only work for
-function-level findings — they cannot suppress configuration findings, which are not
-attached to a function.
+**`# sobelow_skip` comments** mark a *specific function* or a *specific Phoenix
+router pipeline*. The comment must sit immediately above the `def` or `pipeline`
+it applies to.
 
 ```elixir
 # sobelow_skip ["Traversal.SendFile", "XSS.Raw"]
@@ -56,6 +56,23 @@ def download(conn, params) do
   ...
 end
 ```
+
+On a pipeline they suppress the router configuration checks — `Config.CSRF`,
+`Config.Headers`, and `Config.CSP`:
+
+```elixir
+# sobelow_skip ["Config.CSRF"]
+pipeline :api do
+  ...
+end
+```
+
+Listing the parent `Config` module suppresses every Config check on that
+pipeline, the same way `-i Config` ignores the whole group.
+
+They still cannot suppress configuration findings that are not attached to a
+function or a pipeline — `Config.Secrets` or `Config.HTTPS`, for instance, which
+come from `config/*.exs`. Use `--mark-skip-all` for those.
 
 **`--mark-skip-all`** writes every currently-reported finding to a `.sobelow-skips`
 file, and works for *all* finding types including configuration ones. Use it when

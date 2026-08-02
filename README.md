@@ -200,6 +200,10 @@ pipeline :browser do
 end
 ```
 
+Listing the parent `Config` module skips every Config check on
+that pipeline, in the same way that `-i Config` ignores the
+whole group.
+
 When integrating Sobelow into a new project, there can be a
 large number of false positives. To mark all printed findings
 as false positives, run sobelow with the `--mark-skip-all` flag.

@@ -22,6 +22,9 @@ defmodule Sobelow.Config.Headers do
       pipeline :browser do
         ...
       end
+
+  This requires the `--skip` flag. Listing the parent `Config`
+  module instead skips every Config check on that pipeline.
   """
   alias Sobelow.Config
 

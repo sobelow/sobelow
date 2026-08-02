@@ -111,8 +111,9 @@ defmodule Sobelow.Config do
   end
 
   def get_unskipped_pipelines(filepath, check_mod) do
-    get_pipelines_with_skips(filepath)
-    |> Enum.reject(&skipped_pipeline?(&1, check_mod))
+    filepath
+    |> get_pipelines_with_skips()
+    |> Enum.reject(fn {_pipeline, skips} -> skipped?(skips, check_mod) end)
     |> Enum.map(fn {pipeline, _skips} -> pipeline end)
   end
 
@@ -122,15 +123,16 @@ defmodule Sobelow.Config do
     |> Parse.get_pipelines_with_skips()
   end
 
-  defp skipped_pipeline?({_pipeline, skips}, check_mod) when is_list(skips) do
+  # A pipeline skip matches either the specific check (`Config.CSRF`) or the
+  # parent module (`Config`), which suppresses every Config check on that
+  # pipeline. This mirrors `-i Config`, which drops the whole Config group.
+  defp skipped?(skips, check_mod) do
     Sobelow.get_env(:skip) &&
       Enum.any?(skips, fn skip ->
         mod = Sobelow.get_mod(skip)
         mod == check_mod || mod == __MODULE__
       end)
   end
-
-  defp skipped_pipeline?(_, _), do: false
 
   def get_plug_list(block) do
     case block do
