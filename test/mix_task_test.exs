@@ -145,6 +145,7 @@ defmodule SobelowTest.MixTaskTest do
 
     test "leaves machine-readable formats alone" do
       assert parse(["--out", "findings.sarif", "-f", "sarif"]).format == "sarif"
+      assert parse(["--out", "findings.log", "-f", "github"]).format == "github"
       assert parse(["--out", "findings.json", "-f", "json"]).format == "json"
       assert parse(["--out", "findings.txt", "--quiet"]).format == "quiet"
     end

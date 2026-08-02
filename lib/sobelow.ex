@@ -86,7 +86,7 @@ defmodule Sobelow do
     # - Remove config check from "allowed" modules
     # - Scan funcs from the root
     # - Scan funcs from the libroot
-    if format() not in ["quiet", "compact", "flycheck", "json"],
+    if format() not in ["quiet", "compact", "flycheck", "json", "github"],
       do: IO.puts(:stderr, print_banner())
 
     Application.put_env(:sobelow, :app_name, app_name)
@@ -157,6 +157,9 @@ defmodule Sobelow do
 
         "sarif" ->
           FindingLog.sarif(@v)
+
+        "github" ->
+          FindingLog.github()
 
         _ ->
           nil
