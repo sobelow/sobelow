@@ -48,6 +48,7 @@ features or security checks, please open an issue!
 - [Configuration Files](#configuration-files)
 - [False Positives](#false-positives)
 - [Modules](#modules)
+- [Usage Rules](#usage-rules)
 - [Umbrella Apps](#umbrella-apps)
 - [Updates](#updates)
 
@@ -213,6 +214,15 @@ command line:
 
     $ mix help sobelow
 
+## Usage Rules
+
+Sobelow ships a [`usage-rules.md`](usage-rules.md) covering how to interpret
+confidence levels, suppress false positives correctly, and wire the tool into CI.
+It follows the [usage_rules](https://hex.pm/packages/usage_rules) convention, so
+projects using an AI coding assistant can pull it into their agent's context:
+
+    $ mix usage_rules.sync AGENTS.md sobelow
+
 ## Umbrella Apps
 
 In order to run Sobelow against all child apps within an umbrella app with a single command, you can add an alias for sobelow in your root `mix.exs` file:
@@ -230,8 +240,14 @@ If you wish to use configuration files in an umbrella app, create a `.sobelow-co
 ## Updates
 When scanning a project, Sobelow will occasionally check for
 updates, and will print an alert if a new version is available.
-Sobelow keeps track of the last update-check by creating a
-`.sobelow` file in the root of the scanned project.
+Sobelow keeps track of the last update-check by writing a
+`sobelow-vsn-check` file to `~/.sobelow`.
+
+The location of that directory can be changed with the
+`SOBELOW_HOME` environment variable:
+
+    $ SOBELOW_HOME=/var/cache/sobelow mix sobelow
 
 If this functionality is not desired, the `--private` flag can
-be used with the scan.
+be used with the scan. With `--private`, Sobelow makes no network
+requests and does not write the cache file at all.
