@@ -30,6 +30,13 @@
       `conn.${atom_to_string(field)}`.
     * `.sobelow-conf` keys are now genuinely sorted alphabetically.
   * Enhancements
+    * `# sobelow_skip` comments now work on Phoenix router pipelines, not just
+      functions. This makes `Config.CSRF`, `Config.Headers`, and `Config.CSP`
+      suppressible per pipeline instead of only via `--mark-skip-all`, so an API
+      pipeline that legitimately has no `:protect_from_forgery` can be annotated
+      in place. Listing the parent `Config` module skips every Config check on
+      that pipeline. As with function-level skips, this only takes effect under
+      `--skip`.
     * `--private` now skips the version check entirely rather than still writing
       the cache file. It makes no network requests and touches no files outside
       the scanned project.
@@ -46,6 +53,11 @@
       coverage for every bug above. Line coverage went from 29% to 67%.
     * Added coverage for CLI option parsing, `.sobelow-conf` precedence, `--exit`
       and `--threshold` mapping, and the `json`/`sarif`/`quiet`/`txt` renderers.
+    * Added end-to-end coverage for pipeline-level `# sobelow_skip` comments, and
+      unit coverage for how skips associate with pipelines in the AST.
+    * `Sobelow.ScanCase.temp_fixture_file/3` now restores a committed fixture's
+      original contents instead of deleting the file, so a test can vary a
+      checked-in fixture without destroying it.
   * Misc
     * Replaced the deprecated `:preferred_cli_env` project key with `def cli`.
     * Bumped `credo` to `~> 1.7.19`; 1.7.12 crashed on Elixir 1.20.

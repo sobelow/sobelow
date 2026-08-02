@@ -102,39 +102,68 @@ defmodule Sobelow.Parse do
   def get_meta_funs(ast) do
     init_acc = %{def_funs: [], use_funs: [], module_attrs: []}
     {_, acc} = Macro.prewalk(ast, init_acc, &get_meta_funs(&1, &2))
-    acc
+
+    # A `@sobelow_skip` that annotates a pipeline has already been consumed by
+    # `get_pipelines_with_skips/1`. Leaving it in `def_funs` would let
+    # `Sobelow.combine_skips/2` bind it to the next function in the file as well.
+    consumed = pipeline_skip_attrs(ast)
+    Map.update!(acc, :def_funs, &Enum.reject(&1, fn fun -> MapSet.member?(consumed, fun) end))
   end
 
   @doc false
-  # Collects `pipeline` macros with any immediately preceding `@sobelow_skip`
-  # attributes (converted from `# sobelow_skip` comments when `--skip` is set).
-  # Phoenix router pipelines are macros, not `def`/`defp`, so the normal
-  # function-level skip association does not apply to them.
+  # Every `pipeline` macro in the AST, paired with the skips from any
+  # immediately preceding `@sobelow_skip` attributes (rewritten from
+  # `# sobelow_skip` comments by `read_file/1` when `--skip` is set).
+  #
+  # Phoenix router pipelines are macros, not `def`/`defp`, so the function-level
+  # skip association in `Sobelow.combine_skips/2` never reaches them.
+  #
+  # Collection and association are deliberately separate walks: `get_funs_of_type/2`
+  # finds pipelines wherever they appear, so a pipeline nested in something other
+  # than a plain block (say, inside an `if`) is still scanned — just without skips.
   def get_pipelines_with_skips(ast) do
-    {_, acc} = Macro.prewalk(ast, [], &collect_pipelines_with_skips/2)
-    acc
+    skips = Map.new(skip_associations(ast), fn {pipeline, skips, _attrs} -> {pipeline, skips} end)
+
+    ast
+    |> get_funs_of_type(:pipeline)
+    |> Enum.reverse()
+    |> Enum.map(&{&1, Map.get(skips, &1, [])})
   end
 
-  defp collect_pipelines_with_skips({:__block__, meta, stmts}, acc) when is_list(stmts) do
-    pipelines = associate_skips_with_pipelines(stmts)
-    {{:__block__, meta, stmts}, acc ++ pipelines}
+  defp pipeline_skip_attrs(ast) do
+    ast
+    |> skip_associations()
+    |> Enum.flat_map(fn {_pipeline, _skips, attrs} -> attrs end)
+    |> MapSet.new()
   end
 
-  # A module whose only expression is a pipeline has no surrounding `__block__`.
-  defp collect_pipelines_with_skips(
-         {:defmodule, meta, [alias_ast, [do: {:pipeline, _, _} = pipeline]]},
-         acc
-       ) do
-    {{:defmodule, meta, [alias_ast, [do: pipeline]]}, acc ++ [{pipeline, []}]}
+  # `read_file/1` only rewrites skip comments into attributes under `--skip`, so
+  # without it there is nothing to associate and the walk can be skipped entirely.
+  defp skip_associations(ast) do
+    if Sobelow.get_env(:skip) do
+      {_, acc} = Macro.prewalk(ast, [], &collect_skip_associations/2)
+      acc
+    else
+      []
+    end
   end
 
-  defp collect_pipelines_with_skips(ast, acc), do: {ast, acc}
+  defp collect_skip_associations({:__block__, _, stmts} = ast, acc) when is_list(stmts) do
+    {ast, acc ++ associate_skips_with_pipelines(stmts)}
+  end
 
+  defp collect_skip_associations(ast, acc), do: {ast, acc}
+
+  # `@sobelow_skip` attributes bind to the next `pipeline` in the same block. Any
+  # other statement in between clears them, mirroring the way a function-level
+  # skip has to sit immediately above its `def`. A pipeline that carries a skip
+  # always has at least two statements in its block, so it always has a
+  # `__block__` to be found in.
   defp associate_skips_with_pipelines(statements) do
-    {pipelines, _pending_skips} =
+    {associations, _pending} =
       Enum.reduce(statements, {[], []}, fn
-        {:@, _, [{:sobelow_skip, _, [skips]}]}, {acc, pending} when is_list(skips) ->
-          {acc, pending ++ skips}
+        {:@, _, [{:sobelow_skip, _, [skips]}]} = attr, {acc, pending} when is_list(skips) ->
+          {acc, pending ++ [{attr, skips}]}
 
         {:pipeline, _, _} = pipeline, {acc, pending} ->
           {[{pipeline, pending} | acc], []}
@@ -143,7 +172,9 @@ defmodule Sobelow.Parse do
           {acc, []}
       end)
 
-    Enum.reverse(pipelines)
+    Enum.map(associations, fn {pipeline, pending} ->
+      {pipeline, Enum.flat_map(pending, &elem(&1, 1)), Enum.map(pending, &elem(&1, 0))}
+    end)
   end
 
   def get_meta_funs({:@, _, [{:sobelow_skip, _, _}]} = ast, acc) do
