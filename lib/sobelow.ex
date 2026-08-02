@@ -91,15 +91,12 @@ defmodule Sobelow do
 
     Application.put_env(:sobelow, :app_name, app_name)
 
-    config_task =
-      if Enum.member?(allowed, Config) do
-        Task.async_stream([project_root], &Config.fetch(&1, routers, endpoints))
-      end
-
-    vuln_task =
-      if Enum.member?(allowed, Vuln) do
-        Task.async_stream([project_root], &Vuln.get_vulns/1)
-      end
+    # Config and Vuln are each a single unit of work, so there is nothing to
+    # spread across schedulers. Running them directly keeps them off
+    # `Task.async_stream/3`, whose default 5s timeout would otherwise abort a
+    # scan of a project large enough for either to run long.
+    if Enum.member?(allowed, Config), do: Config.fetch(project_root, routers, endpoints)
+    if Enum.member?(allowed, Vuln), do: Vuln.get_vulns(project_root)
 
     allowed = allowed -- [Config, Vuln]
 
@@ -124,7 +121,7 @@ defmodule Sobelow do
         )
       end
 
-    [config_task, vuln_task, root_and_libroot_tasks, xss_tasks]
+    [root_and_libroot_tasks, xss_tasks]
     |> Enum.map(&List.wrap/1)
     |> Enum.concat()
     |> Enum.each(&Stream.run/1)
@@ -132,6 +129,7 @@ defmodule Sobelow do
     if format() != "txt" do
       print_output()
     else
+      FindingLog.print_txt()
       IO.puts(:stderr, "... SCAN COMPLETE ...\n")
     end
 
@@ -217,14 +215,19 @@ defmodule Sobelow do
     end
   end
 
-  def log_finding(finding, custom_metadata \\ [])
+  # `nil` means "print the default metadata block". A list means "print exactly
+  # these headers", and an empty list therefore means "print none" — which is
+  # what findings like `Config.HSTS` want, since they have no function, line, or
+  # variable to report.
+  def log_finding(finding, custom_metadata \\ nil)
 
-  def log_finding(%Finding{} = finding, custom_metadata) when is_list(custom_metadata) do
+  def log_finding(%Finding{} = finding, custom_metadata)
+      when is_nil(custom_metadata) or is_list(custom_metadata) do
     do_log_finding(finding.type, finding, custom_metadata)
   end
 
   def log_finding(details, %Finding{} = finding) do
-    do_log_finding(details, finding, [])
+    do_log_finding(details, finding, nil)
   end
 
   defp do_log_finding(details, %Finding{} = finding, custom_metadata) do
