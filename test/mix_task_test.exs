@@ -36,6 +36,24 @@ defmodule SobelowTest.MixTaskTest do
     Map.new(@env_keys, &{&1, Application.get_env(:sobelow, &1)})
   end
 
+  describe "--no-router" do
+    test "is normalised to a :none router, so it round-trips through --save-config" do
+      assert parse(["--no-router"]).router == :none
+    end
+
+    test "leaves the router unset when absent" do
+      assert parse([]).router == nil
+    end
+
+    test "does not disturb an explicit router path" do
+      assert parse(["--router", "lib/my_web/router.ex"]).router == "lib/my_web/router.ex"
+    end
+
+    test "takes precedence over an explicit router path" do
+      assert parse(["--router", "lib/my_web/router.ex", "--no-router"]).router == :none
+    end
+  end
+
   describe "--legacy-skips" do
     test "defaults to off, so the skips file is rewritten sorted" do
       assert parse([]).legacy_skips == false

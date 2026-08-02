@@ -149,6 +149,10 @@ Other useful flags:
 - `--compact` / `--flycheck` — single-line findings for editors and tooling.
 - `--strict` — treat a file Sobelow cannot parse as a hard error (exit 2) instead of
   skipping it. Without it, unparseable files are silently skipped.
+- `--no-router` — for a project with no Phoenix router, such as a plain Elixir
+  library. Without it Sobelow warns that it cannot find one, on every run. The
+  router-dependent checks are skipped either way. Set it in `.sobelow-conf` as
+  `router: :none`.
 
 ## What it will and will not find
 
