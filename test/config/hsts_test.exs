@@ -4,6 +4,8 @@ defmodule SobelowTest.Config.HstsTest do
 
   setup do
     Application.put_env(:sobelow, :format, "json")
+    Application.put_env(:sobelow, :threshold, :low)
+    Application.put_env(:sobelow, :skip, false)
     Sobelow.Fingerprint.start_link()
     Sobelow.FindingLog.start_link()
 

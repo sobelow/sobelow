@@ -45,7 +45,16 @@ defmodule Sobelow.ScanCase do
   end
 
   setup do
-    on_exit(&stop_state_processes/0)
+    # A scan writes a dozen keys into the global :sobelow env. Restore whatever
+    # was there so other tests, which may rely on ambient env, are unaffected by
+    # the options a scan happened to run with.
+    original_env = Application.get_all_env(:sobelow)
+
+    on_exit(fn ->
+      stop_state_processes()
+      restore_env(original_env)
+    end)
+
     :ok
   end
 
@@ -158,5 +167,15 @@ defmodule Sobelow.ScanCase do
     GenServer.stop(pid, :normal, 1_000)
   catch
     :exit, _ -> :ok
+  end
+
+  defp restore_env(original_env) do
+    Enum.each(Application.get_all_env(:sobelow), fn {key, _} ->
+      Application.delete_env(:sobelow, key)
+    end)
+
+    Enum.each(original_env, fn {key, value} ->
+      Application.put_env(:sobelow, key, value)
+    end)
   end
 end

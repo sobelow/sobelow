@@ -7,6 +7,8 @@ defmodule SobelowTest.ParserTest do
 
   setup do
     Application.put_env(:sobelow, :format, "txt")
+    Application.put_env(:sobelow, :threshold, :low)
+    Application.put_env(:sobelow, :skip, false)
     Sobelow.Fingerprint.start_link()
 
     :ok
