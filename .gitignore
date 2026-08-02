@@ -19,8 +19,15 @@ erl_crash.dump
 # Also ignore archive artifacts (built via "mix archive.build").
 *.ez
 
+# The escript built by "mix escript.build".
+/sobelow
+
+# Scratch directories created by ExUnit's :tmp_dir tag.
+/tmp
+
 .elixir_ls/
 
 .idea/
 sobelow.iml
 .about
+.claude/settings.local.json

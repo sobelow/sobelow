@@ -32,7 +32,7 @@ defmodule Sobelow.Config.HSTS do
   defp handle_https(opts, file) do
     # If HTTPS configs were found in any compile-time config file and there
     # are no accompanying HSTS configs, add an HSTS finding.
-    if length(opts) > 0 && Enum.empty?(Config.get_configs(:force_ssl, file)) do
+    if opts != [] && Enum.empty?(Config.get_configs(:force_ssl, file)) do
       add_finding(file)
     end
   end
