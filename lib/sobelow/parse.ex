@@ -106,9 +106,21 @@ defmodule Sobelow.Parse do
     # A `@sobelow_skip` that annotates a pipeline has already been consumed by
     # `get_pipelines_with_skips/1`. Leaving it in `def_funs` would let
     # `Sobelow.combine_skips/2` bind it to the next function in the file as well.
-    consumed = pipeline_skip_attrs(ast)
-    Map.update!(acc, :def_funs, &Enum.reject(&1, fn fun -> MapSet.member?(consumed, fun) end))
+    #
+    # Only a file that actually carries a skip attribute can have one rejected,
+    # and virtually none do, so the second walk is gated on the first one having
+    # found something. Under `--skip` this is the difference between paying for
+    # an extra full traversal of every scanned file and paying for none.
+    if Enum.any?(acc.def_funs, &skip_attr?/1) do
+      consumed = pipeline_skip_attrs(ast)
+      Map.update!(acc, :def_funs, &Enum.reject(&1, fn fun -> MapSet.member?(consumed, fun) end))
+    else
+      acc
+    end
   end
+
+  defp skip_attr?({:@, _, [{:sobelow_skip, _, _}]}), do: true
+  defp skip_attr?(_), do: false
 
   @doc false
   # Every `pipeline` macro in the AST, paired with the skips from any
