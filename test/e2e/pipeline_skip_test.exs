@@ -113,6 +113,59 @@ defmodule Sobelow.PipelineSkipTest do
            "the skip belonged to the pipeline, so `download/2` must still be scanned"
   end
 
+  # The reproduction from https://github.com/sobelow/sobelow/issues/27: a real
+  # router has more than one pipeline, and the skip has to land on the annotated
+  # one only.
+  test "a pipeline skip does not carry over to the next pipeline" do
+    router = """
+    defmodule BasicWeb.Router do
+      use BasicWeb, :router
+
+      # sobelow_skip ["Config.CSRF"]
+      pipeline :annotated do
+        plug(:accepts, ["html"])
+        plug(:fetch_session)
+      end
+
+      pipeline :unannotated do
+        plug(:accepts, ["html"])
+        plug(:fetch_session)
+      end
+    end
+    """
+
+    temp_fixture_file("basic", @router_path, router)
+
+    pipelines =
+      scan("basic", skip: true)
+      |> findings_for("Config.CSRF")
+      |> Enum.map(& &1["pipeline"])
+
+    assert pipelines == ["unannotated"]
+  end
+
+  # Comments and blank lines do not appear in the AST, so the rewritten
+  # `@sobelow_skip` attribute is still the statement immediately before the
+  # pipeline. Worth pinning: routers are often written this way.
+  test "a blank line between the comment and the pipeline does not break the association" do
+    router = """
+    defmodule BasicWeb.Router do
+      use BasicWeb, :router
+
+      # sobelow_skip ["Config.CSRF"]
+
+      pipeline :browser do
+        plug(:accepts, ["html"])
+        plug(:fetch_session)
+      end
+    end
+    """
+
+    temp_fixture_file("basic", @router_path, router)
+
+    refute "Config.CSRF" in finding_modules(scan("basic", skip: true))
+  end
+
   test "a function-level skip in the router still works" do
     router = """
     defmodule BasicWeb.Router do
