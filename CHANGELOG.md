@@ -37,6 +37,14 @@
       `conn.${atom_to_string(field)}`.
     * `.sobelow-conf` keys are now genuinely sorted alphabetically.
   * Enhancements
+    * `.sobelow-skips` is now written in sorted order, so regenerating it after
+      fixing or adding a finding produces a small diff instead of reshuffling the
+      file. Entries sort by type, file, and line number — numerically, so line 10
+      follows line 9 rather than line 1. The whole file is sorted, not just the
+      newly added entries, so the ordering holds however many times it is
+      regenerated. Comments and pre-v0.14 bare-fingerprint lines are preserved.
+      Pass `--legacy-skips` for the previous append-only behaviour, which never
+      rewrites lines it did not add.
     * `# sobelow_skip` comments now work on Phoenix router pipelines, not just
       functions. This makes `Config.CSRF`, `Config.Headers`, and `Config.CSP`
       suppressible per pipeline instead of only via `--mark-skip-all`, so an API

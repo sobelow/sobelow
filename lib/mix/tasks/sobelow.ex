@@ -22,6 +22,7 @@ defmodule Mix.Tasks.Sobelow do
   * `--strict` - Exit when bad syntax is encountered
   * `--mark-skip-all` - Mark all printed findings as skippable
   * `--clear-skip` - Clear configuration added by `--mark-skip-all`
+  * `--legacy-skips` - Append to `.sobelow-skips` instead of rewriting it sorted
   * `--skip` - Skip functions/Phoenix pipelines flagged with `#sobelow_skip` or tagged with `--mark-skip-all`
   * `--router` - Specify router location
   * `--exit` - Return non-zero exit status
@@ -97,6 +98,7 @@ defmodule Mix.Tasks.Sobelow do
     skip: :boolean,
     mark_skip_all: :boolean,
     clear_skip: :boolean,
+    legacy_skips: :boolean,
     router: :string,
     exit: :string,
     format: :string,
@@ -157,6 +159,7 @@ defmodule Mix.Tasks.Sobelow do
     set_env(:skip, skip)
     set_env(:mark_skip_all, mark_skip_all)
     set_env(:clear_skip, clear_skip)
+    set_env(:legacy_skips, Keyword.get(opts, :legacy_skips, false))
     set_env(:router, router)
     set_env(:exit_on, exit_on)
     set_env(:format, format)

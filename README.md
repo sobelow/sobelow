@@ -142,6 +142,10 @@ relative to the application root.
 
   * `--clear-skip` - Clear configuration created by `--mark-skip-all`.
 
+  * `--legacy-skips` - Append to `.sobelow-skips` rather than rewriting it in
+  sorted order. Only needed if you have tooling that relies on the file being
+  append-only.
+
   * `--skip` - Ignore findings that have been marked for skipping. See [False Positives](#false-positives)
   for more information.
 

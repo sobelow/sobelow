@@ -540,12 +540,80 @@ defmodule Sobelow do
                 fingerprint
             end
           end)
-          |> Enum.sort()
 
-        {:ok, iofile} = :file.open(cfile, [:append])
-        entries_str = Enum.join(skip_entries, "\n")
-        :file.write(iofile, ["\n", entries_str])
-        :file.close(iofile)
+        write_skips(cfile, skip_entries)
+    end
+  end
+
+  defp write_skips(cfile, entries) do
+    if get_env(:legacy_skips) do
+      append_skips(cfile, entries)
+    else
+      rewrite_skips(cfile, entries)
+    end
+  end
+
+  # The historical behaviour: never touch what is already in the file, only add
+  # to the end of it. Kept behind `--legacy-skips` for anyone whose tooling
+  # depends on the file being append-only.
+  defp append_skips(cfile, entries) do
+    {:ok, iofile} = :file.open(cfile, [:append])
+    :file.write(iofile, ["\n", entries |> sort_skips() |> Enum.join("\n")])
+    :file.close(iofile)
+  end
+
+  # Sorting only the newly appended entries leaves the file as a series of
+  # independently sorted blocks, so the churn this avoids only holds for a file
+  # written in one go. Merging with what is already there and rewriting keeps the
+  # whole file ordered however many times it is regenerated.
+  defp rewrite_skips(cfile, entries) do
+    existing =
+      case File.read(cfile) do
+        {:ok, contents} -> contents |> String.split("\n") |> Enum.map(&String.trim/1)
+        {:error, _} -> []
+      end
+
+    lines =
+      (existing ++ entries)
+      |> Enum.reject(&(&1 == ""))
+      |> Enum.uniq()
+      |> sort_skips()
+
+    File.write!(cfile, Enum.join(lines, "\n") <> "\n")
+  end
+
+  defp sort_skips(entries), do: Enum.sort_by(entries, &skip_sort_key/1)
+
+  # Sorting the raw string would put line 10 before line 2, so an edit that
+  # renumbers findings reshuffles the file — exactly the churn sorting is meant
+  # to remove. Ordering on the parsed location keeps entries in place and lets
+  # only their line numbers change.
+  #
+  # Comments are kept at the top, where a header note belongs. Bare fingerprints
+  # are the pre-v0.14 format and sort last, since they carry no location to sort
+  # on. Nothing is ever dropped: a rewrite preserves every line it found.
+  defp skip_sort_key("#" <> _ = comment), do: {0, comment, "", 0, ""}
+
+  defp skip_sort_key(entry) do
+    case String.split(entry, ",") do
+      [type, location, fingerprint] ->
+        {file, line_no} = split_skip_location(location)
+        {1, type, file, line_no, fingerprint}
+
+      [fingerprint] ->
+        {2, "", "", 0, fingerprint}
+
+      _ ->
+        {3, entry, "", 0, ""}
+    end
+  end
+
+  defp split_skip_location(location) do
+    segments = String.split(location, ":")
+
+    case segments |> List.last() |> Integer.parse() do
+      {line_no, ""} -> {segments |> Enum.drop(-1) |> Enum.join(":"), line_no}
+      _ -> {location, 0}
     end
   end
 

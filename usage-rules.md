@@ -86,7 +86,11 @@ mix sobelow --skip            # scan, ignoring those
 mix sobelow --clear-skip      # discard the recorded skips
 ```
 
-Commit `.sobelow-skips` so the whole team and CI share the same baseline.
+Commit `.sobelow-skips` so the whole team and CI share the same baseline. The file
+is rewritten in sorted order each time it is regenerated, so re-running
+`--mark-skip-all` after fixing or adding a finding produces a small, readable diff
+rather than reshuffling the file. Pass `--legacy-skips` if you need the older
+append-only behaviour, which never rewrites lines it did not add.
 
 Prefer `# sobelow_skip` with an explicit module list over `--mark-skip-all` when you
 have only a handful of false positives — it documents the decision at the code, and
