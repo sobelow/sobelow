@@ -195,6 +195,112 @@ defmodule SobelowTest.MixTaskTest do
     end
   end
 
+  # `.sobelow-conf` is read automatically and lives in version control, so a key
+  # that ends the run before a scan happens turns a committed file into a
+  # silently disabled scanner. `version: true` was the one that got there by
+  # accident: `--save-config` wrote it into every file it generated, and
+  # `mix sobelow --version --save-config` therefore produced a file that made
+  # every later run print the version and exit 0.
+  describe "command-line actions in .sobelow-conf" do
+    @describetag :tmp_dir
+
+    defp conf(tmp_dir, contents) do
+      path = Path.join(tmp_dir, ".sobelow-conf")
+      File.write!(path, contents)
+      path
+    end
+
+    for key <- [:version, :all_details, :save_config] do
+      test "#{key} is dropped", %{tmp_dir: tmp_dir} do
+        path = conf(tmp_dir, "[#{unquote(key)}: true, verbose: true]")
+
+        capture_io(:stderr, fn ->
+          assert Mix.Tasks.Sobelow.config_settings(path) == [verbose: true]
+        end)
+      end
+    end
+
+    test "details is dropped even though its value is a string", %{tmp_dir: tmp_dir} do
+      path = conf(tmp_dir, ~s([details: "Config.CSRF", verbose: true]))
+
+      capture_io(:stderr, fn ->
+        assert Mix.Tasks.Sobelow.config_settings(path) == [verbose: true]
+      end)
+    end
+
+    test "warn naming the file and the flag to use instead", %{tmp_dir: tmp_dir} do
+      path = conf(tmp_dir, ~s([version: true]))
+
+      stderr = capture_io(:stderr, fn -> Mix.Tasks.Sobelow.config_settings(path) end)
+
+      assert stderr =~ "Ignoring `version` in #{path}"
+      assert stderr =~ "--version"
+    end
+
+    test "warn about save_config using its command-line spelling", %{tmp_dir: tmp_dir} do
+      path = conf(tmp_dir, ~s([save_config: true]))
+
+      stderr = capture_io(:stderr, fn -> Mix.Tasks.Sobelow.config_settings(path) end)
+
+      assert stderr =~ "--save-config"
+      refute stderr =~ "--save_config"
+    end
+
+    # Every release up to v0.14.1 wrote `version: false` into the file that
+    # `--save-config` generated. Warning about a value that would not have done
+    # anything would fire for a great many projects with nothing wrong.
+    test "are dropped in silence when the value would not have done anything", %{tmp_dir: tmp_dir} do
+      path = conf(tmp_dir, ~s([verbose: true, version: false]))
+
+      stderr =
+        capture_io(:stderr, fn ->
+          assert Mix.Tasks.Sobelow.config_settings(path) == [verbose: true]
+        end)
+
+      assert stderr == ""
+    end
+
+    # The cases above call `config_settings/1` directly, which leaves the wiring
+    # untested. `--all-details` terminates the task's `cond` before the `version`
+    # branch, so the env is observable without running a scan: had the file been
+    # honoured, `:version` would be `true` here and every run in the project
+    # would print the version and exit 0.
+    test "are not reachable through the task itself", %{tmp_dir: tmp_dir} do
+      conf(tmp_dir, ~s([version: true]))
+
+      capture_io(:stderr, fn ->
+        capture_io(fn ->
+          Mix.Tasks.Sobelow.run(["--root", tmp_dir, "--private", "--all-details"])
+        end)
+      end)
+
+      assert Application.get_env(:sobelow, :version) == false
+    end
+
+    test "leave genuine settings untouched", %{tmp_dir: tmp_dir} do
+      path =
+        conf(tmp_dir, ~s([exit: :medium, format: "json", ignore: ["XSS.Raw"], verbose: true]))
+
+      assert Mix.Tasks.Sobelow.config_settings(path) ==
+               [exit: :medium, format: "json", ignore: ["XSS.Raw"], verbose: true]
+    end
+  end
+
+  describe "--save-config" do
+    @describetag :tmp_dir
+
+    test "does not persist a command-line action into the file", %{tmp_dir: tmp_dir} do
+      capture_io(fn ->
+        Mix.Tasks.Sobelow.run(["--root", tmp_dir, "--private", "--version", "--save-config"])
+      end)
+
+      {:ok, conf} = Mix.Tasks.Sobelow.read_config_file(Path.join(tmp_dir, ".sobelow-conf"))
+
+      refute Keyword.has_key?(conf, :version)
+      assert Keyword.has_key?(conf, :verbose)
+    end
+  end
+
   describe "read_config_file/1" do
     @describetag :tmp_dir
 

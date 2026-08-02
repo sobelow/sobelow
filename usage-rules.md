@@ -119,6 +119,11 @@ Precedence rules:
 - **CLI switches override the file.**
 - `--no-config` ignores the file for that run.
 
+The file holds settings only. `--version`, `--details`, `--all-details`,
+`--save-config`, and `--diff` pick what Sobelow does instead of configuring a
+scan, and each ends the run before one happens, so they are ignored if they
+appear in the file.
+
 Commit `.sobelow-conf`. Paths in it are stored relative to the project root, so it
 works on other machines and in CI.
 

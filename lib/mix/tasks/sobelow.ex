@@ -117,6 +117,14 @@ defmodule Mix.Tasks.Sobelow do
 
   @aliases [v: :verbose, r: :root, i: :ignore, d: :details, f: :format]
 
+  # These pick what Sobelow *does* instead of configuring a scan, and every one
+  # of them ends the run before a scan happens. `.sobelow-conf` is read
+  # automatically and committed to the repository, so honouring one from the
+  # file means a checked-in file can stop the scanner from ever scanning —
+  # `version: true` prints the version and exits 0, which a CI gate reads as a
+  # clean scan. They are accepted on the command line only.
+  @cli_only_actions [:version, :details, :all_details, :save_config, :diff]
+
   # For escript entry
   def main(argv) do
     run(argv)
@@ -140,7 +148,7 @@ defmodule Mix.Tasks.Sobelow do
     opts =
       if conf_file? do
         # CLI args take precedence
-        Keyword.merge(load_config_file(conf_file), opts)
+        Keyword.merge(config_settings(conf_file), opts)
       else
         opts
       end
@@ -240,6 +248,37 @@ defmodule Mix.Tasks.Sobelow do
 
   defp validate_config(opts) do
     if Keyword.keyword?(opts), do: {:ok, opts}, else: :error
+  end
+
+  @doc false
+  # The settings from `.sobelow-conf`, with any command-line action dropped.
+  #
+  # A value that would not have changed anything is dropped in silence: every
+  # release up to v0.14.1 wrote `version: false` into the file that
+  # `--save-config` generated, so warning about it would fire for a great many
+  # existing projects that have nothing wrong with them.
+  def config_settings(conf_file) do
+    conf_file
+    |> load_config_file()
+    |> Enum.reject(fn {key, value} ->
+      if key in @cli_only_actions do
+        if value, do: warn_ignored_action(conf_file, key)
+        true
+      else
+        false
+      end
+    end)
+  end
+
+  defp warn_ignored_action(conf_file, key) do
+    Sobelow.IO.warn("""
+    Ignoring `#{key}` in #{conf_file}.
+
+    `--#{String.replace(to_string(key), "_", "-")}` chooses what Sobelow does \
+    rather than configuring a scan, and a configuration file that sets one \
+    stops the scan from running at all. Remove it from the file and pass it on \
+    the command line when you want it.
+    """)
   end
 
   defp load_config_file(conf_file) do
