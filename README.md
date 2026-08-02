@@ -109,6 +109,13 @@ relative to the application root.
   used if the router location is non-standard. Accepts a path
   argument, e.g. `my/strange/router.ex`.
 
+  * `--no-router` - Scan a project that has no Phoenix router, such as a plain
+  Elixir library. Sobelow otherwise warns that it cannot find one. The
+  router-dependent checks (`Config.CSRF`, `Config.CSRFRoute`, `Config.Headers`,
+  and `Config.CSP`) are skipped either way, since there is nothing for them to
+  inspect. This is shorthand for `--router :none`, which can also be set in
+  `.sobelow-conf` as `router: :none`.
+
   * `--exit` - Return non-zero exit status at or above a confidence
   threshold of `low`, `medium`, or `high`. Defaults to `false` which returns a zero exit status
 

@@ -37,6 +37,11 @@
       `conn.${atom_to_string(field)}`.
     * `.sobelow-conf` keys are now genuinely sorted alphabetically.
   * Enhancements
+    * Added `--no-router`, for scanning a project that has no Phoenix router.
+      Sobelow warned that it could not find one and offered no way to silence it,
+      which was noise for plain Elixir libraries. It is shorthand for
+      `--router :none`, which can also be set in `.sobelow-conf` as
+      `router: :none`. The router-dependent checks are skipped either way.
     * `.sobelow-skips` is now written in sorted order, so regenerating it after
       fixing or adding a finding produces a small diff instead of reshuffling the
       file. Entries sort by type, file, and line number — numerically, so line 10

@@ -338,17 +338,30 @@ defmodule Sobelow do
     """
   end
 
-  defp get_router("", true) do
+  # `--no-router`, `--router :none`, and `router: :none` in `.sobelow-conf` all
+  # declare that the project has no router. The CLI can only ever produce the
+  # string, while a config file holds the atom, so both spellings are accepted.
+  defp router_disabled?, do: get_env(:router) in [:none, ":none"]
+
+  # Checked before either clause below: the second pipes through `Path.expand/1`,
+  # which raises on an atom.
+  defp get_router(tmp_default_router, phx_post_1_2?) do
+    if router_disabled?() do
+      ""
+    else
+      do_get_router(tmp_default_router, phx_post_1_2?)
+    end
+  end
+
+  defp do_get_router("", true) do
     case get_env(:router) do
       nil -> ""
       "" -> ""
-      :none -> ""
-      ":none" -> ""
       router -> Path.expand(router)
     end
   end
 
-  defp get_router(tmp_default_router, _) do
+  defp do_get_router(tmp_default_router, _) do
     case get_env(:router) do
       nil -> tmp_default_router
       "" -> tmp_default_router
@@ -474,9 +487,10 @@ defmodule Sobelow do
     please use the `--router` flag to specify the router's location.
     """
 
-    if get_env(:router) not in [":none", :none] do
-      IO.puts(:stderr, message)
-    end
+    if !router_disabled?(), do: IO.puts(:stderr, message)
+
+    # The router checks are dropped either way — without a router there is
+    # nothing for them to inspect.
     ignored = get_env(:ignored)
 
     Application.put_env(

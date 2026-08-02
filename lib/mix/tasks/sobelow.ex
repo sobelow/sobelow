@@ -25,6 +25,8 @@ defmodule Mix.Tasks.Sobelow do
   * `--legacy-skips` - Append to `.sobelow-skips` instead of rewriting it sorted
   * `--skip` - Skip functions/Phoenix pipelines flagged with `#sobelow_skip` or tagged with `--mark-skip-all`
   * `--router` - Specify router location
+  * `--no-router` - Scan a project that has no Phoenix router, suppressing the
+  "cannot find the router" warning. Equivalent to `--router :none`
   * `--exit` - Return non-zero exit status
   * `--threshold` - Only return findings at or above a given confidence level
   * `--format` - Specify findings output format
@@ -100,6 +102,7 @@ defmodule Mix.Tasks.Sobelow do
     clear_skip: :boolean,
     legacy_skips: :boolean,
     router: :string,
+    no_router: :boolean,
     exit: :string,
     format: :string,
     config: :boolean,
@@ -273,7 +276,14 @@ defmodule Mix.Tasks.Sobelow do
     skip = Keyword.get(opts, :skip, false)
     mark_skip_all = Keyword.get(opts, :mark_skip_all, false)
     clear_skip = Keyword.get(opts, :clear_skip, false)
-    router = Keyword.get(opts, :router)
+    # `--no-router` is the discoverable spelling of `--router :none`. Normalising
+    # it here keeps `:router` the single source of truth, so `--save-config`
+    # records it and a `.sobelow-conf` can express it too.
+    router =
+      if Keyword.get(opts, :no_router, false),
+        do: :none,
+        else: Keyword.get(opts, :router)
+
     out = Keyword.get(opts, :out)
     version = Keyword.get(opts, :version, false)
 
