@@ -273,8 +273,7 @@ defmodule Sobelow do
       router: get_env(:router),
       skip: get_env(:skip),
       threshold: get_env(:threshold),
-      verbose: get_env(:verbose),
-      version: get_env(:version)
+      verbose: get_env(:verbose)
     ]
 
     yes? =

@@ -36,6 +36,15 @@
     * Fixed a string-interpolation typo that rendered dot-access variables as
       `conn.${atom_to_string(field)}`.
     * `.sobelow-conf` keys are now genuinely sorted alphabetically.
+    * A `.sobelow-conf` can no longer stop Sobelow from scanning. `--save-config`
+      wrote `version` into every file it generated, so
+      `mix sobelow --version --save-config` produced a committed file that made
+      every later run print the version and **exit 0** — a CI gate reading that
+      as a clean scan. `version`, `details`, `all-details`, `save-config`, and
+      `diff` choose what Sobelow does rather than configure a scan, and are now
+      accepted on the command line only. One in the file is ignored, with a
+      warning when it would have changed anything. `version` is no longer
+      written to the file in the first place.
     * `# sobelow_skip` comments are no longer thrown away over whitespace. The
       pattern demanded exactly one space after the `#` and exactly one before
       the list, so `# sobelow_skip["XSS.Raw"]`, `#  sobelow_skip ["XSS.Raw"]`,

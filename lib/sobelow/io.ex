@@ -7,6 +7,10 @@ defmodule Sobelow.IO do
     IO.puts(:stderr, IO.ANSI.format([:red, :bright, message]))
   end
 
+  def warn(message) do
+    IO.puts(:stderr, IO.ANSI.format([:yellow, message]))
+  end
+
   def yes?(message) do
     answer = IO.gets(message <> " [Yn] ")
     is_binary(answer) and String.trim(answer) in ["", "y", "Y", "yes", "YES", "Yes"]
