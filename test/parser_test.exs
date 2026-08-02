@@ -28,8 +28,9 @@ defmodule SobelowTest.ParserTest do
 
       CodeModule.run(ast, @metafile)
 
-      # Wait for FindingLog GenServer to process the message and emit the log output
-      Sobelow.FindingLog.log()
+      # Findings are printed once the scan finishes rather than as they are
+      # logged, so that a parallel scan still reports in a stable order.
+      Sobelow.FindingLog.print_txt()
     end
 
     assert capture_io(run_test) =~ "Code Execution in `Code.eval_string` - Medium Confidence"

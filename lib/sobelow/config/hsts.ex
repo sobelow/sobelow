@@ -63,7 +63,9 @@ defmodule Sobelow.Config.HSTS do
         Sobelow.log_finding(json_finding, finding)
 
       "txt" ->
-        Sobelow.log_finding(finding)
+        # No function, line, or variable applies to a missing HSTS setting, so
+        # the header alone is the whole finding.
+        Sobelow.log_finding(finding, [])
 
       "compact" ->
         Print.log_compact_finding(finding)

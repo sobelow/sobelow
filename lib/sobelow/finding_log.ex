@@ -84,21 +84,39 @@ defmodule Sobelow.FindingLog do
   end
 
   def handle_cast({:add, finding, severity}, findings) do
-    if Sobelow.format() == "txt" do
-      {_, %_{} = finding_struct, custom_metadata} = finding
-
-      if Enum.empty?(custom_metadata) do
-        Sobelow.Print.do_print_finding_metadata(finding_struct)
-      else
-        Sobelow.Print.do_print_custom_finding_metadata(finding_struct, custom_metadata)
-      end
-    end
-
     {:noreply, Map.update!(findings, severity, &[finding | &1])}
   end
 
   def handle_call(:log, _from, findings) do
-    {:reply, findings, findings}
+    sorted = Map.new(findings, fn {severity, list} -> {severity, sort_findings(list)} end)
+    {:reply, sorted, findings}
+  end
+
+  @doc false
+  # Prints every txt finding at the end of the scan, in a stable order.
+  #
+  # Findings used to print as they arrived, which under parallel scanning is
+  # whatever order the tasks happened to finish — the same project could produce
+  # a different report on each run, defeating diffing between runs.
+  def print_txt do
+    %{high: highs, medium: meds, low: lows} = log()
+
+    (highs ++ meds ++ lows)
+    |> sort_findings()
+    |> Enum.each(fn {_details, finding, custom_metadata} ->
+      case custom_metadata do
+        nil -> Sobelow.Print.do_print_finding_metadata(finding)
+        headers -> Sobelow.Print.do_print_custom_finding_metadata(finding, headers)
+      end
+    end)
+  end
+
+  # Location first, so a report reads in file order. The fingerprint is a final
+  # tiebreaker so that two findings sharing a location still sort stably.
+  defp sort_findings(findings) do
+    Enum.sort_by(findings, fn {_details, finding, _custom_metadata} ->
+      {finding.filename, finding.vuln_line_no, finding.type, finding.fingerprint}
+    end)
   end
 
   def format_json(map) when is_map(map) do
