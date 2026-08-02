@@ -70,6 +70,11 @@ end
 Listing the parent `Config` module suppresses every Config check on that
 pipeline, the same way `-i Config` ignores the whole group.
 
+Spacing does not matter, but the check names must be a list of double-quoted
+strings. A comment Sobelow cannot read is reported on stderr with its file and
+line rather than being ignored, so a skip that appears to do nothing is worth
+checking the warnings for.
+
 They still cannot suppress configuration findings that are not attached to a
 function or a pipeline — `Config.Secrets` or `Config.HTTPS`, for instance, which
 come from `config/*.exs`. Use `--mark-skip-all` for those.
