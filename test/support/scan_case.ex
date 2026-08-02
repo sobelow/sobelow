@@ -27,6 +27,7 @@ defmodule Sobelow.ScanCase do
     format: "json",
     ignored: [],
     ignored_files: [],
+    legacy_skips: false,
     mark_skip_all: false,
     out: nil,
     private: true,

@@ -19,6 +19,7 @@ defmodule SobelowTest.MixTaskTest do
     :format,
     :ignored,
     :ignored_files,
+    :legacy_skips,
     :out,
     :private,
     :root,
@@ -33,6 +34,16 @@ defmodule SobelowTest.MixTaskTest do
     capture_io(fn -> Mix.Tasks.Sobelow.run(argv ++ ["--version", "--private"]) end)
 
     Map.new(@env_keys, &{&1, Application.get_env(:sobelow, &1)})
+  end
+
+  describe "--legacy-skips" do
+    test "defaults to off, so the skips file is rewritten sorted" do
+      assert parse([]).legacy_skips == false
+    end
+
+    test "is enabled by the flag" do
+      assert parse(["--legacy-skips"]).legacy_skips == true
+    end
   end
 
   describe "defaults" do
