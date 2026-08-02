@@ -244,8 +244,8 @@ defmodule Sobelow do
     conf = [
       exit: get_env(:exit_on),
       format: get_env(:format),
-      ignore_files: get_env(:ignored_files),
       ignore: get_env(:ignored),
+      ignore_files: relative_ignored_files(),
       out: get_env(:out),
       private: get_env(:private),
       router: get_env(:router),
@@ -266,6 +266,16 @@ defmodule Sobelow do
       File.write!(conf_file, inspect(conf, limit: :infinity, printable_limit: :infinity))
       MixIO.info("Updated .sobelow-conf")
     end
+  end
+
+  # `--ignore-files` values are expanded to absolute paths at parse time, but
+  # `.sobelow-conf` is meant to be committed and shared, so store them relative
+  # to the project root.
+  defp relative_ignored_files do
+    root = Utils.get_root() |> Path.expand()
+
+    get_env(:ignored_files)
+    |> Enum.map(&Path.relative_to(&1, root))
   end
 
   def meets_threshold?(severity) do
@@ -553,44 +563,61 @@ defmodule Sobelow do
   defp load_ignored_fingerprints(:eof, _), do: nil
   defp load_ignored_fingerprints(_, _), do: nil
 
+  @doc false
+  # `SOBELOW_HOME` overrides the *directory* the version-check timestamp is cached in.
+  def version_check_file do
+    (System.get_env("SOBELOW_HOME") || @home)
+    |> Path.expand()
+    |> Path.join(@vsncheck)
+  end
+
   defp version_check do
-    config =
-      System.get_env("SOBELOW_HOME") ||
-        @home
-        |> Path.expand()
-        |> Path.join(@vsncheck)
-
-    home = Path.dirname(config)
-
-    if File.exists?(home) do
-      version_check(config)
+    if get_env(:private) do
+      nil
     else
-      File.mkdir_p!(home)
-      version_check(config)
+      config = version_check_file()
+      home = Path.dirname(config)
+
+      # An unwritable home directory is not a reason to fail a scan.
+      case File.mkdir_p(home) do
+        :ok -> version_check(config)
+        {:error, _} -> nil
+      end
     end
   end
 
   defp version_check(config) do
     time = DateTime.utc_now() |> DateTime.to_unix()
 
-    if File.exists?(config) do
-      {:ok, iofile} = :file.open(config, [:read])
-
-      {timestamp, _} =
-        case :file.read_line(iofile) do
-          {:ok, ~c"sobelow-" ++ timestamp} -> to_string(timestamp) |> Integer.parse()
-          _ -> file_error()
-        end
-
-      :file.close(iofile)
-
-      if time - 12 * 60 * 60 > timestamp do
-        maybe_prompt_update(time, config)
-      end
-    else
-      maybe_prompt_update(time, config)
+    case last_version_check(config) do
+      {:ok, timestamp} when time - 12 * 60 * 60 <= timestamp -> nil
+      _ -> maybe_prompt_update(time, config)
     end
   end
+
+  @doc false
+  # A missing, unreadable, or corrupt cache file just means "we don't know when we
+  # last checked". It must never abort the scan.
+  def last_version_check(config) do
+    case :file.open(config, [:read]) do
+      {:ok, iofile} ->
+        line = :file.read_line(iofile)
+        :file.close(iofile)
+        parse_version_check(line)
+
+      {:error, _} ->
+        :error
+    end
+  end
+
+  defp parse_version_check({:ok, ~c"sobelow-" ++ timestamp}) do
+    case Integer.parse(to_string(timestamp)) do
+      {timestamp, _} -> {:ok, timestamp}
+      :error -> :error
+    end
+  end
+
+  defp parse_version_check(_), do: :error
 
   defp get_sobelow_version do
     {:ok, _} = Application.ensure_all_started(:ssl)
@@ -627,21 +654,19 @@ defmodule Sobelow do
   defp maybe_prompt_update(time, cfile) do
     installed_vsn = Version.parse!(@v)
 
-    unless get_env(:private) do
-      cmp =
-        get_sobelow_version()
-        |> Version.compare(installed_vsn)
+    cmp =
+      get_sobelow_version()
+      |> Version.compare(installed_vsn)
 
-      case cmp do
-        :gt ->
-          MixIO.error("""
-          A new version of Sobelow is available:
-          mix archive.install hex sobelow
-          """)
+    case cmp do
+      :gt ->
+        MixIO.error("""
+        A new version of Sobelow is available:
+        mix archive.install hex sobelow
+        """)
 
-        _ ->
-          nil
-      end
+      _ ->
+        nil
     end
 
     timestamp = "sobelow-" <> to_string(time)
