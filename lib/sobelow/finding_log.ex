@@ -75,8 +75,49 @@ defmodule Sobelow.FindingLog do
     end
   end
 
+  @doc false
+  def github do
+    %{high: highs, medium: meds, low: lows} = log()
+
+    (highs ++ meds ++ lows)
+    |> sort_findings()
+    |> Enum.map_join("\n", &format_github/1)
+  end
+
   defp total(%{high: highs, medium: meds, low: lows}) do
     length(highs) + length(meds) + length(lows)
+  end
+
+  defp format_github({_details, finding, _custom_metadata}) do
+    level = if finding.confidence == :high, do: "error", else: "warning"
+
+    properties =
+      [
+        {"file", finding.filename},
+        {"line", finding.vuln_line_no},
+        {"col", finding.vuln_col_no},
+        {"title", finding.type}
+      ]
+      |> Enum.reject(fn {_key, value} -> is_nil(value) or value == 0 end)
+      |> Enum.map_join(",", fn {key, value} -> "#{key}=#{escape_command_value(value)}" end)
+
+    message =
+      case finding.vuln_variable do
+        nil -> finding.type
+        variable -> "#{finding.type}: #{variable}"
+      end
+
+    "::#{level} #{properties}::#{escape_command_value(message)}"
+  end
+
+  defp escape_command_value(value) do
+    value
+    |> to_string()
+    |> String.replace("%", "%25")
+    |> String.replace("\r", "%0D")
+    |> String.replace("\n", "%0A")
+    |> String.replace(":", "%3A")
+    |> String.replace(",", "%2C")
   end
 
   def init(:ok) do

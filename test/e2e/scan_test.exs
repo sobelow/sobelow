@@ -82,6 +82,14 @@ defmodule SobelowTest.E2E.ScanTest do
   end
 
   describe "output formats" do
+    test "github emits workflow commands with escaped properties" do
+      {stdout, _stderr} = scan_io("basic", format: "github")
+
+      assert stdout =~ ~r/^::(error|warning) file=.*line=\d+(,col=\d+)?,title=.*::/
+      assert stdout =~ "%3A"
+      refute stdout =~ "Running Sobelow"
+    end
+
     test "sarif emits one result per finding with a rule id" do
       {stdout, _stderr} = scan_io("basic", format: "sarif")
 
