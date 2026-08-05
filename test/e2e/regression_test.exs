@@ -182,6 +182,76 @@ defmodule SobelowTest.E2E.RegressionTest do
     end
   end
 
+  # https://github.com/sobelow/sobelow/issues/30 — a project with its own
+  # `query/1` got a SQL injection finding on every call to it.
+  describe "SQL.Query on unqualified calls" do
+    defp sql_findings_in(report, path) do
+      report
+      |> findings_for("SQL.Query")
+      |> Enum.filter(&String.ends_with?(&1["file"], path))
+    end
+
+    test "a local function named query/1 is not reported" do
+      temp_fixture_file("basic", "lib/basic/local_query.ex", """
+      defmodule Basic.LocalQuery do
+        def sobelow_test(arg), do: query(arg)
+        def query(arg), do: 42
+      end
+      """)
+
+      report = scan("basic")
+
+      assert sql_findings_in(report, "lib/basic/local_query.ex") == []
+      # The rest of the scan is untouched: the fixture's own qualified
+      # `Ecto.Adapters.SQL.query/3` is still found.
+      assert length(findings_for(report, "SQL.Query")) == 1
+    end
+
+    test "an unqualified query/3 is reported when the file imported Ecto.Adapters.SQL" do
+      temp_fixture_file("basic", "lib/basic/imported_query.ex", """
+      defmodule Basic.ImportedQuery do
+        import Ecto.Adapters.SQL
+
+        def run(%{"sql" => sql}), do: query(Repo, sql, [])
+      end
+      """)
+
+      report = scan("basic")
+
+      assert [finding] = sql_findings_in(report, "lib/basic/imported_query.ex")
+      assert finding["variable"] == "sql"
+    end
+
+    test "an unqualified query/1 is reported inside an Ecto.Repo" do
+      temp_fixture_file("basic", "lib/basic/repo.ex", """
+      defmodule Basic.Repo do
+        use Ecto.Repo, otp_app: :basic, adapter: Ecto.Adapters.Postgres
+
+        def run(%{"sql" => sql}), do: query(sql)
+      end
+      """)
+
+      report = scan("basic")
+
+      assert [finding] = sql_findings_in(report, "lib/basic/repo.ex")
+      assert finding["variable"] == "sql"
+    end
+
+    test "an unrelated module ending in SQL does not re-enable unqualified matching" do
+      temp_fixture_file("basic", "lib/basic/unrelated.ex", """
+      defmodule Basic.Unrelated do
+        import Some.Other.SQL
+
+        def run(%{"sql" => sql}), do: query(sql)
+      end
+      """)
+
+      report = scan("basic")
+
+      assert sql_findings_in(report, "lib/basic/unrelated.ex") == []
+    end
+  end
+
   describe "Parse.normalize_finding/1" do
     test "renders a dot-access variable rather than leaking the interpolation source" do
       dot_access = {:., [line: 1], [{:conn, [line: 1], nil}, :body_params]}

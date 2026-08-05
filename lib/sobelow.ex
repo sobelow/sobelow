@@ -437,6 +437,7 @@ defmodule Sobelow do
     meta_funs = Parse.get_meta_funs(ast)
     def_funs = meta_funs.def_funs
     use_funs = meta_funs.use_funs
+    import_funs = meta_funs.import_funs
 
     %{
       filename: Utils.normalize_path(filename),
@@ -444,7 +445,12 @@ defmodule Sobelow do
       def_funs: def_funs,
       controller?: Utils.controller?(use_funs),
       router?: Utils.router?(use_funs),
-      is_endpoint?: Utils.endpoint?(use_funs)
+      is_endpoint?: Utils.endpoint?(use_funs),
+      # An unqualified `query/3` only means Ecto's if the file imported it, and an
+      # unqualified `query/1` only means a repo's if the file is one. Without that
+      # evidence a bare `query(...)` is somebody's own function.
+      imports_ecto_sql?: Utils.imports?(import_funs, [:Ecto, :Adapters, :SQL]),
+      ecto_repo?: Utils.uses?(use_funs, [:Ecto, :Repo])
     }
   end
 

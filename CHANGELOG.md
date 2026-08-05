@@ -51,6 +51,14 @@
       and `# sobelow_skip [ "XSS.Raw" ]` were all ignored — silently, and
       indistinguishably from a skip that had simply not applied. Spacing around
       the marker, inside the list, and around commas is now irrelevant.
+    * `SQL.Query` no longer reports a project's own `query/1` as SQL injection.
+      An unqualified `query`/`query!` call was matched regardless of what it
+      referred to, so every call to a local function that happened to carry one
+      of those very ordinary names produced a finding. The unqualified form is
+      now only considered in a file that has `import Ecto.Adapters.SQL` or
+      `use Ecto.Repo` — the two ways the bare name can actually reach Ecto.
+      Qualified calls, such as `Repo.query/1` and `Ecto.Adapters.SQL.query/3`,
+      are unaffected.
   * Enhancements
     * Added `--no-router`, for scanning a project that has no Phoenix router.
       Sobelow warned that it could not find one and offered no way to silence it,
