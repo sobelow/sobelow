@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.15.0
   * Bug fixes
     * `Config.Secrets` no longer crashes the scan when a secret is written as
       anything other than a plain double-quoted string. Heredoc values and values
