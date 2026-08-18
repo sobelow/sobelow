@@ -135,12 +135,18 @@ relative to the application root.
   * `--threshold` - Return findings at or above a confidence level
   of `low` (default), `medium`, or `high`.
 
-  * `--format` or `-f` - Specify findings output format. Accepts a format,
-  e.g. `txt` or `json`.
+  * `--format` or `-f` - Specify findings output format. Accepts `txt`, `json`,
+  `sarif`, `github`, `quiet`, `compact`, or `flycheck`.
 
       Note that options such as `--verbose` will not work with the `json` format.
       All `json` formatted findings contain a `type`, `file`, and `line` key.
       Other keys may vary.
+
+      `github` emits GitHub Actions workflow annotations. Each finding is a
+      warning with its confidence level in the message. Locations are relative
+      to `GITHUB_WORKSPACE` when set, so scans from a subdirectory attach to the
+      repository's files. Otherwise, locations are relative to the current
+      directory. Findings without a location use line 1, column 1.
 
   * `--quiet` - Return a single line indicating number of findings.
   Otherwise, return no output if there are no findings.

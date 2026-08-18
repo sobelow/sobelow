@@ -25,6 +25,26 @@ elixir -pa _build/prod/lib/jason/ebin -e '
   true = Enum.all?(run["results"], &is_binary(&1["ruleId"]))
 ' "$scan_tmp/stdout"
 
+scan_workspace=$PWD
+expect_status 0 --private --root test/fixtures/apps/basic --format github
+grep -q '^::warning file=test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex,' "$scan_tmp/stdout"
+
+expect_status 0 --private --root "$scan_workspace/test/fixtures/apps/basic" --format github
+grep -q '^::warning file=test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex,' "$scan_tmp/stdout"
+
+(
+  cd test/fixtures/apps/basic
+  GITHUB_WORKSPACE="$scan_workspace" "$scan_workspace/sobelow" --private --format github \
+    > "$scan_tmp/stdout" 2> "$scan_tmp/stderr"
+)
+grep -q '^::warning file=test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex,' "$scan_tmp/stdout"
+
+expect_status 0 --private --root test/fixtures/apps/basic --format github --out "$scan_tmp/findings.log"
+test ! -s "$scan_tmp/stdout"
+grep -q '^::warning file=' "$scan_tmp/findings.log"
+
+expect_status 1 --private --exit high --root test/fixtures/apps/basic --format github
+
 expect_status 0 --private --with-code --root test/fixtures/apps/basic --format quiet
 
 expect_status 1 --private --root "$scan_tmp/missing"

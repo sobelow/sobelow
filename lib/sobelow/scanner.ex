@@ -26,7 +26,7 @@ defmodule Sobelow.Scanner do
       System.halt(0)
     end
 
-    if Sobelow.format() not in ["quiet", "compact", "flycheck", "json"],
+    if Sobelow.format() not in ["quiet", "compact", "flycheck", "json", "github"],
       do: IO.puts(:stderr, print_banner(version))
 
     Application.put_env(:sobelow, :app_name, project.app_name)
@@ -109,6 +109,9 @@ defmodule Sobelow.Scanner do
 
         "sarif" ->
           FindingLog.sarif(version)
+
+        "github" ->
+          FindingLog.github()
 
         _ ->
           nil

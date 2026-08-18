@@ -158,6 +158,11 @@ Every branch must be handled: `"json"`, `"txt"`, `"compact"`, `"flycheck"`, and 
 catch-all `_` that only logs. `"sarif"` is rendered from the log, not per-finding —
 `Sobelow.format/0` maps it to `"json"`.
 
+The `"github"` format also renders from the collected log, via
+`FindingLog.github/0`. The catch-all branch retains findings for this format.
+Rewrite GitHub annotation locations only when rendering; original finding
+filenames and fingerprints must stay intact.
+
 ### Confidence
 
 `Print.get_sev/2,3` grades a finding by whether the tainted variable is one of the

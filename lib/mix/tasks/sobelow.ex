@@ -32,7 +32,8 @@ defmodule Mix.Tasks.Sobelow do
   "cannot find the router" warning. Equivalent to `--router :none`
   * `--exit` - Return non-zero exit status
   * `--threshold` - Only return findings at or above a given confidence level
-  * `--format` - Specify findings output format
+  * `--format` - Specify findings output format (`txt`, `json`, `sarif`, `github`,
+  `quiet`, `compact`, or `flycheck`)
   * `--quiet` - Return no output if there are no findings
   * `--compact` - Minimal, single-line findings
   * `--save-config` - Generates a configuration file based on command line options
@@ -247,7 +248,16 @@ defmodule Mix.Tasks.Sobelow do
   defp validate_scan_options!(opts) do
     validate_choice!(opts, :exit, [false, nil, :low, :medium, :high], ["low", "medium", "high"])
     validate_choice!(opts, :threshold, [:low, :medium, :high], ["low", "medium", "high"])
-    validate_choice!(opts, :format, [], ["txt", "json", "sarif", "compact", "flycheck", "quiet"])
+
+    validate_choice!(opts, :format, [], [
+      "txt",
+      "json",
+      "sarif",
+      "compact",
+      "flycheck",
+      "quiet",
+      "github"
+    ])
   end
 
   defp validate_choice!(opts, key, atoms, strings) do
@@ -442,7 +452,7 @@ defmodule Mix.Tasks.Sobelow do
   defp out_format("", format), do: format
 
   defp out_format(_out, format) do
-    if format in ["json", "quiet", "sarif"] do
+    if format in ["json", "quiet", "sarif", "github"] do
       format
     else
       "json"
