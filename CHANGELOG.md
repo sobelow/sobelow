@@ -50,6 +50,8 @@
       filesystem, and network failures. OTP 24 skips the notification because
       it has no built-in CA-store API.
   * Enhancements
+    * Added a `github` output format for GitHub Actions workflow annotations,
+      with confidence levels and repository-relative finding locations.
     * Added detection of raw output in HEEx files and inline `~H` sigils,
       including body and attribute expressions, legacy EEx, qualified and piped
       `Phoenix.HTML.raw` calls, nested sigils, and Elixir comments. Controller

@@ -147,9 +147,14 @@ Machine-readable output for other tooling:
 mix sobelow --format json
 mix sobelow --format sarif        # e.g. GitHub code scanning
 mix sobelow --format sarif --out results.sarif
+mix sobelow --format github       # GitHub Actions workflow annotations
 ```
 
 `--out` implies a machine-readable format; a `txt` format is coerced to `json`.
+
+The `github` format emits warning annotations with confidence levels in the
+messages. It uses `GITHUB_WORKSPACE` for repository-relative file locations,
+including when a workflow step runs from an application subdirectory.
 
 Other useful flags:
 

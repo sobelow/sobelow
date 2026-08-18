@@ -141,6 +141,17 @@ defmodule SobelowTest.MixTaskTest do
       assert parse(["-f", "JSON"]).format == "json"
     end
 
+    test "accepts GitHub annotations, including mixed case" do
+      assert parse(["--format", "github"]).format == "github"
+      assert parse(["-f", "GitHub"]).format == "github"
+    end
+
+    @tag :tmp_dir
+    test "accepts GitHub annotations from the configuration file", %{tmp_dir: tmp_dir} do
+      File.write!(Path.join(tmp_dir, ".sobelow-conf"), ~s([format: "github"]))
+      assert parse(["--root", tmp_dir]).format == "github"
+    end
+
     test "the shorthand flags win over --format" do
       assert parse(["--quiet", "-f", "txt"]).format == "quiet"
       assert parse(["--compact", "-f", "txt"]).format == "compact"
@@ -187,6 +198,7 @@ defmodule SobelowTest.MixTaskTest do
 
     test "leaves machine-readable formats alone" do
       assert parse(["--out", "findings.sarif", "-f", "sarif"]).format == "sarif"
+      assert parse(["--out", "findings.log", "-f", "github"]).format == "github"
       assert parse(["--out", "findings.json", "-f", "json"]).format == "json"
       assert parse(["--out", "findings.txt", "--quiet"]).format == "quiet"
     end

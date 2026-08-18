@@ -140,6 +140,89 @@ defmodule Sobelow.FindingLog do
     end
   end
 
+  def github do
+    %{high: highs, medium: meds, low: lows} = read_log(false)
+    workspace = System.get_env("GITHUB_WORKSPACE")
+    base = if workspace in [nil, ""], do: File.cwd!(), else: Path.expand(workspace)
+
+    (highs ++ meds ++ lows)
+    |> sort_findings()
+    |> Enum.map_join("\n", &format_github(&1, base))
+    |> case do
+      "" -> nil
+      text -> text
+    end
+  end
+
+  defp format_github({_details, finding, _custom_metadata}, base) do
+    properties = github_properties(finding, base)
+
+    message =
+      "Sobelow: #{finding.type} (#{finding.confidence} confidence)"
+      |> escape_data()
+
+    "::warning #{properties}::#{message}"
+  end
+
+  defp github_properties(finding, base) do
+    line = positive_integer(finding.vuln_line_no)
+    column = positive_integer(finding.vuln_col_no)
+
+    properties =
+      [
+        {"file", github_filename(finding.filename, base)},
+        {"line", line},
+        {"endLine", line},
+        {"col", column}
+      ]
+
+    properties
+    |> Enum.reject(fn {_key, value} -> is_nil(value) end)
+    |> Enum.map_join(",", fn {key, value} -> "#{key}=#{escape_property(value)}" end)
+  end
+
+  defp github_filename(nil, _base), do: nil
+
+  defp github_filename(filename, base) do
+    root = Sobelow.Scan.normalized_root()
+    relative = Path.relative_to(filename, root)
+
+    # Findings retain their historical normalized paths (including the removed
+    # leading slash). Reconstruct the real path using the scan root, then make
+    # only this output relative to the repository workspace.
+    path =
+      cond do
+        Path.type(filename) == :absolute ->
+          filename
+
+        root == "" or relative != filename ->
+          Path.expand(relative, Path.expand(Sobelow.Utils.get_root()))
+
+        true ->
+          Path.expand(filename)
+      end
+
+    Path.relative_to(path, base)
+  end
+
+  defp positive_integer(value) when is_integer(value) and value > 0, do: value
+  defp positive_integer(_value), do: 1
+
+  defp escape_data(value) do
+    value
+    |> to_string()
+    |> String.replace("%", "%25")
+    |> String.replace("\r", "%0D")
+    |> String.replace("\n", "%0A")
+  end
+
+  defp escape_property(value) do
+    value
+    |> escape_data()
+    |> String.replace(":", "%3A")
+    |> String.replace(",", "%2C")
+  end
+
   def init(:ok) do
     {:ok,
      %{
