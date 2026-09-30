@@ -496,6 +496,7 @@ defmodule Sobelow.Parse do
             |> inline_heex_ast(file, line_offset + 1)
             |> shift_inline_columns(meta, literal_meta, line_offset + 1)
             |> heex_assigns()
+            |> Sobelow.Lexical.index_inline(node)
             |> get_meta_template_fun()
             |> Map.fetch!(:raw)
 
@@ -572,12 +573,21 @@ defmodule Sobelow.Parse do
     {ast, Map.update!(acc, :raw, &[ast | &1])}
   end
 
+  def get_meta_template_fun(
+        {:|>, _, [_, {{:., _, [{:__aliases__, _, modules}, :raw]}, _, _} = call]} = ast,
+        acc
+      ) do
+    if alias_matches?(call, modules, :HTML),
+      do: {ast, Map.update!(acc, :raw, &[ast | &1])},
+      else: {ast, acc}
+  end
+
   def get_meta_template_fun({:raw, _, _} = ast, acc) do
     {ast, Map.update!(acc, :raw, &[ast | &1])}
   end
 
   def get_meta_template_fun({{:., _, [{:__aliases__, _, modules}, :raw]}, _, _} = ast, acc) do
-    if List.last(modules) == :HTML,
+    if alias_matches?(ast, modules, :HTML),
       do: {ast, Map.update!(acc, :raw, &[ast | &1])},
       else: {ast, acc}
   end
@@ -1028,10 +1038,8 @@ defmodule Sobelow.Parse do
     "conn.params"
   end
 
-  defp parse_opts({{:., _, [Access, :get]}, _, opts}) do
-    [{val, _, _} | _] = opts
-    val
-  end
+  defp parse_opts({{:., _, [Access, :get]}, _, [{val, _, _} | _]}), do: val
+  defp parse_opts({{:., _, [Access, :get]}, _, [value | _]}), do: parse_opts(value)
 
   defp parse_opts({{:., _, _}, _, [{:var!, _, [{:assigns, _, EEx.Engine}]}, var]}) do
     "@#{var}"

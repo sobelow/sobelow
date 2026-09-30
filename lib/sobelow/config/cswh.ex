@@ -21,22 +21,49 @@ defmodule Sobelow.Config.CSWH do
 
   def run(endpoint) do
     ast = Parse.ast(endpoint)
-    default = endpoint_origin(ast)
 
-    ast
-    |> Parse.get_funs_of_type(:socket)
-    |> handle_sockets(endpoint, default)
+    Enum.each(endpoint_contexts(ast), fn {module, body} ->
+      body
+      |> Parse.get_funs_of_type(:socket)
+      |> handle_sockets(endpoint, endpoint_origin(module))
+    end)
   end
 
-  defp endpoint_origin(ast) do
-    module =
+  defp endpoint_contexts(ast) do
+    modules =
       ast
       |> Parse.get_funs_of_type(:defmodule)
-      |> Enum.find_value(fn
-        {:defmodule, _, [{:__aliases__, _, segments}, _]} -> segments
-        _ -> nil
+      |> Enum.flat_map(fn
+        {:defmodule, _, [name, [do: body]]} ->
+          module = if match?({:__aliases__, _, _}, name), do: elem(name, 2)
+
+          body =
+            Macro.prewalk(body, fn
+              {:defmodule, _, _} -> {}
+              node -> node
+            end)
+
+          [{module, body}]
+
+        _ ->
+          []
       end)
 
+    endpoints =
+      Enum.filter(modules, fn {_module, body} ->
+        body |> Parse.get_meta_funs() |> Map.fetch!(:use_funs) |> Utils.endpoint?()
+      end)
+
+    # Direct callers historically scan even bodies with no literal endpoint
+    # declaration. Preserve that fallback while isolating recognized endpoints.
+    cond do
+      endpoints != [] -> endpoints
+      modules != [] -> modules
+      true -> [{nil, ast}]
+    end
+  end
+
+  defp endpoint_origin(module) do
     if module do
       root = Sobelow.Utils.get_root()
 
@@ -91,6 +118,7 @@ defmodule Sobelow.Config.CSWH do
 
   defp check_socket_options([_ | t], default), do: check_socket_options(t, default)
   defp check_socket_options([], default), do: check_websocket_options([], default)
+  defp check_socket_options(_dynamic, _default), do: {true, :low}
 
   defp check_websocket_options(options, default) do
     origin = Keyword.get(options, :check_origin, default)

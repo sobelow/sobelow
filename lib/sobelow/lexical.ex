@@ -28,6 +28,19 @@ defmodule Sobelow.Lexical do
 
   def active?, do: is_map(Process.get(@context_key))
 
+  def index_inline(ast, sigil) do
+    case resolution(sigil) do
+      %{aliases: _} = env ->
+        {_env, acc} = walk(ast, env, %{functions: %{}, calls: %{}})
+        Process.put(@context_key, Map.merge(Process.get(@context_key), acc.calls))
+
+      _ ->
+        :ok
+    end
+
+    ast
+  end
+
   def matches?(node, target) do
     case resolution(node) do
       %{module: module} when is_list(module) ->
@@ -192,6 +205,18 @@ defmodule Sobelow.Lexical do
 
   defp walk({:use, _, [module | _]}, env, acc) do
     {%{env | repo?: env.repo? or module_name(module, env) == [:Ecto, :Repo]}, acc}
+  end
+
+  defp walk({:&, _, [{:/, _, [{fun, meta, _}, arity]}]}, env, acc) do
+    # Parsing helpers represent named captures as synthetic calls. Index the
+    # same call so alias resolution and import arities survive that conversion.
+    walk(Sobelow.Parse.create_fun_cap(fun, meta, arity), env, acc)
+  end
+
+  defp walk({:sigil_H, _, _} = node, env, acc) do
+    # The string's AST is parsed later, after source locations and assigns have
+    # been normalized. Retain this sigil's scope for indexing those new nodes.
+    {env, put_call(acc, node, env)}
   end
 
   defp walk({{:., _, [module, _]}, _, args} = node, env, acc) do

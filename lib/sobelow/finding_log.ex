@@ -280,11 +280,13 @@ defmodule Sobelow.FindingLog do
       end
 
     if relative == filename and File.regular?("/" <> filename) do
-      "file:///" <> URI.encode(filename)
+      "file:///" <> encode_path(filename)
     else
-      URI.encode(relative)
+      encode_path(relative)
     end
   end
+
+  defp encode_path(path), do: URI.encode(path, &(&1 == ?/ or URI.char_unreserved?(&1)))
 
   defp sarif_num(0), do: 1
   defp sarif_num(num), do: num

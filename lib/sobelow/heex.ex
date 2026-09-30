@@ -19,6 +19,22 @@ defmodule Sobelow.HEEx do
 
   defp scan("", _file, _line, _column, _stack, asts), do: Enum.reverse(asts)
 
+  defp scan(source, file, line, column, [{name, _} | rest] = stack, asts)
+       when name in ["script", "style"] do
+    # Phoenix treats these bodies as text until their own closing tag. Literal
+    # HTML examples inside JavaScript or CSS cannot change interpolation scope.
+    ending = "</#{name}>"
+
+    case :binary.match(source, ending) do
+      {position, size} -> advance(source, position + size, file, line, column, rest, asts)
+      :nomatch -> advance(source, byte_size(source), file, line, column, stack, asts)
+    end
+  end
+
+  defp scan("<!--" <> _ = source, file, line, column, stack, asts) do
+    advance(source, through(source, "-->"), file, line, column, stack, asts)
+  end
+
   defp scan("<%" <> _ = source, file, line, column, stack, asts) do
     length = through(source, "%>")
     advance(source, length, file, line, column, stack, asts)

@@ -158,7 +158,10 @@ defmodule Sobelow.Config do
       {_, _, _} = list -> [list]
       _ -> []
     end
-    |> Enum.reject(fn {type, _, _} -> type !== :plug end)
+    |> Enum.filter(fn
+      {:plug, _, _} -> true
+      _ -> false
+    end)
   end
 
   def vuln_pipeline?({:pipeline, _, [_name, [do: block]]}, :csrf) do

@@ -141,6 +141,50 @@ defmodule Sobelow.EffectiveConfigTest do
              scan("basic") |> findings_for("Config.CSWH")
   end
 
+  test "dynamic socket options cannot abort a scan" do
+    temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+    defmodule BasicWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/attribute", BasicWeb.UserSocket, @socket_options
+      socket "/call", BasicWeb.UserSocket, socket_options()
+      socket "/merge", BasicWeb.UserSocket, [websocket: true] ++ @socket_options
+    end
+    """)
+
+    report = scan("basic")
+
+    assert [%{"confidence" => "low"}, %{"confidence" => "low"}, %{"confidence" => "low"}] =
+             findings_for(report, "Config.CSWH")
+
+    assert findings_for(report, "Traversal.FileModule") != []
+  end
+
+  test "each endpoint in a file inherits only its own origin configuration" do
+    temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+    defmodule BasicWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/unsafe", BasicWeb.UserSocket
+    end
+
+    defmodule AdminWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/safe", BasicWeb.UserSocket
+    end
+
+    defmodule UnrelatedSocket do
+      socket "/other", BasicWeb.UserSocket, websocket: [check_origin: false]
+    end
+    """)
+
+    temp_fixture_file("basic", "config/prod.exs", """
+    config :basic, BasicWeb.Endpoint, check_origin: false
+    config :basic, AdminWeb.Endpoint, check_origin: true
+    """)
+
+    assert [%{"confidence" => "high", "line" => 3}] =
+             scan("basic") |> findings_for("Config.CSWH")
+  end
+
   defp production_hsts(report) do
     findings_for(report, "Config.HSTS") |> Enum.filter(&(Path.basename(&1["file"]) == "prod.exs"))
   end
