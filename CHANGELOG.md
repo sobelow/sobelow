@@ -2,128 +2,134 @@
 
 ## Unreleased
 
-  * Code organization: scan discovery, execution and skip-file persistence now
-    have focused internal modules. Shared AST helpers are split into source,
-    metadata, calls, variables and templates, with existing `Sobelow` and
-    `Sobelow.Parse` entry points preserved. Duplicate matchers and worker setup
-    are consolidated; findings, locations, fingerprints and output are unchanged.
+  * Bug fixes
+    * Invalid project roots, roots with no scannable source files, invalid scan
+      options, and unwritable output files now fail with actionable errors.
+    * Repeated scans in the same VM now start with fresh findings, template, and
+      skip state. Malformed sources and templates are skipped with a warning in
+      non-strict mode, and unreadable files are skipped with a warning.
+    * Dynamic socket options, literal statements in router pipelines, and access
+      on a literal keyword list no longer abort scans. Unknown socket options
+      produce low-confidence findings.
+    * `XSS.SendResp` now follows the connection passed to each response and its
+      content type before that sink. Later or discarded setters cannot suppress
+      an earlier finding, and rebindings in branches, patterns, callbacks,
+      generators, and call arguments cannot borrow another connection's content
+      type. Unchanged bindings, pins, guards, and explicit setters retain their
+      existing handling.
+    * HTTPS and HSTS checks now use effective settings for the scanned application
+      and each endpoint, including ordered overrides and nested keyword merges.
+      One endpoint cannot satisfy another's settings. Dynamic and conditional
+      settings produce low-confidence findings. Empty CSP policies are reported.
+    * Enabled sockets now inherit endpoint origin settings from base, production,
+      and runtime configuration, including `socket/2` and `websocket: true`.
+      Explicit socket overrides retain precedence, and
+      disabled WebSockets remain excluded. Defaults are isolated to each endpoint
+      module. Origin allowlists and `:conn` are recognized; an enabled CSRF check
+      lowers confidence when origin checks are disabled.
+    * HEEx comments and script/style text no longer change brace-interpolation
+      scope or introduce findings from literal markup. The
+      `phx-no-curly-interpolation` directive is recognized as an attribute name;
+      the same text inside another attribute's value cannot suppress findings.
+      Inline columns account for sigil prefixes and heredoc indentation.
+    * Module-local `use` and `import` declarations now apply only to their own
+      module. Named captures and inline HEEx retain lexical aliases and import
+      selections, including renamed aliases and imported arity restrictions.
+    * Lockfile dependency advisories now require the Hex package name to match
+      the checked dependency, preventing false advisories for package aliases.
+      Missing or nonliteral versions no longer abort scans.
+    * Explicit router paths now resolve relative to `--root`. SARIF locations
+      are relative to the scan root, or use file URIs for external files. Reserved
+      filename characters, including `#`, `?`, `%`, and `:`, are percent-encoded.
+      JSON filenames and skip fingerprints are unchanged.
+    * SARIF's `Vuln.CookieRCE` rule name now matches its existing result type and
+      rule ID. Unknown finding types receive a null rule ID instead of raising.
+      `Config.CSRFRoute` is now listed in `mix help sobelow`.
+    * Optional version checks now verify TLS certificates and hostnames when a
+      trusted CA store is available, and tolerate malformed responses, cache,
+      filesystem, and network failures. OTP 24 skips the notification because
+      it has no built-in CA-store API.
+  * Enhancements
+    * Added detection of raw output in HEEx files and inline `~H` sigils,
+      including body and attribute expressions, legacy EEx, qualified and piped
+      `Phoenix.HTML.raw` calls, nested sigils, and Elixir comments. Controller
+      renders are correlated with embedded `*_html` templates. Brace
+      interpolation is disabled in script/style bodies and regions marked with
+      `phx-no-curly-interpolation`. Invalid expressions warn and are skipped, or
+      exit 2 under `--strict`.
+    * Added static resolution of renamed and grouped aliases, nested module
+      inheritance, function-local imports, and `only`/`except` arity selections.
+      Confidence grading follows direct local aliases before a sink. Calls
+      retain their original ASTs, and implicit Phoenix controller imports retain
+      their historical detection.
+    * The existing fixed set of `Vuln.*` dependency advisories can now read literal
+      Hex versions from `mix.lock` when `deps/` is unavailable, without evaluating
+      project code.
+    * Added `--include-mix-tasks` and `--include-scripts` to opt into additional
+      source paths, and `--summary` to print file counts on stderr. SARIF now
+      includes invocation warnings and uses the published OASIS schema URL.
+    * `.sobelow-conf` saves and sorted skip rewrites are now atomic, preserve Unix
+      permissions, and follow symlinks. Unreadable existing skip files are
+      preserved and produce an actionable error. `--legacy-skips` retains the
+      existing append behavior.
+    * Improved scan speed with shared function call, pipe, parameter, and
+      confidence analysis; incremental HEEx delimiter parsing; combined
+      file/module metadata extraction; bounded, ordered file preparation; and
+      smaller lexical contexts with compatible lookup paths on older OTP.
+    * Batched finding and fingerprint updates, retaining each function source
+      once per batch. Quiet output and exit status use confidence counts, and
+      repeated reports reuse sorted results. Scan settings, enabled checks,
+      paths, skip lookups, and relevant template snapshots are reused, with
+      per-worker cache counters to avoid contention. Source, AST, lockfile, and
+      dependency-version caches are released when the scan finishes or fails.
+      Existing public finding-log results and output formats are preserved.
+  * Testing
+    * Expanded regression coverage for output and verbose highlighting, advisory
+      boundaries, configuration uncertainty, atomic writes, source edge cases,
+      and scan/lexical context restoration. Added failing regressions and safe
+      controls for Copilot and adversarial review findings.
+    * Added release 0.15.0 fixtures for JSON/SARIF output, rule IDs, fingerprints,
+      and both historical skip formats. Exact fingerprint assertions run on the
+      captured parser family; output/rule contracts and generated skip round
+      trips run across the supported matrix. Independent release column captures
+      qualify older parsers, and highlighting follows each runtime's printer.
+    * Added compatibility coverage for all 70 pre-extraction public function and
+      arity pairs on `Sobelow` and `Sobelow.Parse`, including traversal callbacks
+      and default arities.
+    * Expanded benchmarks to seven workloads and quiet/JSON/SARIF output, with
+      complete finding and output comparisons, reduction counts, and separate
+      sampled VM memory. Methodology, measurements, and limits are documented in
+      `bench/README.md`; the benchmark entry point is `bench/scan.exs`.
+    * Raised line coverage from 85.2% to 98.5%, with a 98% gate on the newest CI
+      runtime. Coverage excludes only the test harness, documentation-only legacy
+      module, and developer diff helper. Fixtures are ignored by test discovery.
+    * Isolated named processes and application configuration in legacy tests to
+      prevent order-dependent failures on older Elixir versions. Version-check
+      cache, response, and TLS-option tests make no network requests.
+    * CI builds and smoke-tests the escript on every supported Elixir/OTP
+      combination, including exit codes; strict Credo runs on every entry.
+  * Misc
+    * Split scan discovery, execution, skip-file persistence, and version checks
+      into focused internal modules. Shared AST helpers now live in source,
+      metadata, calls, variables, and template modules, with the existing
+      `Sobelow` and `Sobelow.Parse` entry points preserved.
+    * Consolidated duplicate matchers and worker setup, reused relative-path
+      handling, and shortened stale comments. Updated contributor and usage
+      guidance to document the new module boundaries and scan options.
 
-  * Scan reliability: missing or invalid project roots, and roots with no
-    scannable source files, now fail instead of exiting successfully; invalid
-    scan options and unwritable output files also fail.
-    Unreadable source files are skipped with a warning, and repeated scans in one
-    VM start with fresh findings and skip state. The optional version check uses
-    certificate verification when a trusted CA store is available and cannot
-    abort a scan on a malformed response. OTP 24 has no built-in CA-store API,
-    so its version notification is skipped.
-  * XSS: `XSS.Raw` now sees `{raw(...)}` in HEEx files and `~H` sigils, and
-    correlates controller renders with embedded `*_html` templates. These are
-    newly reported findings; existing finding types and fingerprints remain in
-    place. `XSS.SendResp` follows the connection passed to each response, so a
-    later or discarded content-type setter cannot suppress an earlier finding.
-  * Configuration: HTTPS and HSTS settings are checked for the scanned app and
-    their values, rather than treating any matching key as enabled. Empty CSP
-    policies are reported, while dynamic policies are low confidence. Explicit
-    WebSocket origin allowlists and `:conn` are recognized as checks; an enabled
-    CSRF check lowers confidence when origin checks are disabled. Sockets also
-    inherit endpoint origin settings from base, production, and runtime config
-    when they have no override.
-  * Paths and coverage: explicit router paths resolve from `--root`, and SARIF
-    locations are relative to the scan root, or use file URIs for external
-    files. `--include-mix-tasks` and
-    `--include-scripts` opt into additional source paths; defaults are unchanged.
-    File-local `use` and `import` now apply only to their own module. Confidence
-    grading follows direct local aliases before a sink without changing reported
-    variables or fingerprints.
-  * Dependency advisories: the existing fixed set of `Vuln.*` rules can read
-    literal Hex versions from `mix.lock` when `deps/` is absent. Nonliteral or
-    missing versions no longer abort the scan. This is not a general CVE feed.
-  * SARIF's `Vuln.CookieRCE` rule name now matches its existing result type and
-    rule ID, without changing the result or users' skip fingerprints.
-    `Config.CSRFRoute` is now listed in `mix help sobelow`.
+### Upgrade notes
 
-  * HEEx parsing now handles legacy EEx expressions inside `~H`, qualified
-    `Phoenix.HTML.raw`, HEEx comments, nested sigils, and Elixir comments. Brace
-    interpolation is disabled in script/style bodies and regions marked with
-    `phx-no-curly-interpolation`. Inline brace columns account for sigil prefixes
-    and heredoc indentation. Invalid HEEx expressions are skipped with a warning
-    (or exit 2 under `--strict`). Newly supported inline forms can add findings;
-    existing EEx finding locations and fingerprints are preserved.
-  * Static alias resolution recognizes renamed and grouped aliases, nested
-    module inheritance, function-local imports, and imported function arities
-    with `only`/`except`. Calls retain their original AST for fingerprints.
-    Implicit Phoenix controller imports retain their historical detection.
-  * HTTPS/HSTS use effective literal settings per endpoint, including ordered
-    overrides and nested keyword merges. One endpoint cannot satisfy another's
-    settings. Dynamic and conditional settings are reported at low confidence.
-  * `--summary` prints file counts on stderr. Non-strict scans warn about skipped
-    source/templates; SARIF includes invocation warnings and uses the published
-    OASIS schema URL. JSON finding fields remain unchanged.
-  * A cache of source reads, ASTs, lockfiles and dependency versions lives for one
-    scan and is released on completion or failure. A reproducible synthetic
-    benchmark is available in `bench/scan.exs`; results and limits are documented
-    in `bench/README.md`.
-  * `.sobelow-conf` saves and sorted skip rewrites are atomic, preserve Unix
-    permissions and follow symlinks. Unreadable existing skip files are preserved
-    and produce an actionable error. `--legacy-skips` retains append behaviour.
-  * Regression fixtures captured from 0.15.0 protect JSON/SARIF results, rule IDs,
-    fingerprints and both historical skip formats on the captured parser family.
-    Output/rule contracts and generated skip round-trips run on every matrix
-    entry. CI builds and smoke-tests the
-    escript on every supported Elixir/OTP combination, including exit codes.
-
-  * Scan performance: checks share function call, pipe and parameter analysis;
-    HEEx consumes brace candidates incrementally and parses attribute expressions
-    once. File/module metadata extraction shares a traversal, preparation uses
-    bounded workers, and lexical contexts avoid copying nested AST keys on OTP
-    releases with deterministic encoding support. Older runtimes retain AST keys.
-    Findings retain their original ASTs, confidence, locations and both hashes.
-  * Finding collection batches updates and retains each enclosing function source
-    once per batch. Quiet output and exit status use confidence counts; repeated
-    reports reuse sorted results. Controller correlation fetches only relevant
-    templates while preserving its snapshot per function. Scan settings, enabled
-    checks, paths and skip lookups are reused; per-worker cache counters avoid
-    contention. Public finding-log results and existing output formats are kept.
-  * Benchmarks now cover seven workloads and quiet/JSON/SARIF output, with complete
-    finding and output comparisons, reduction counts and separate sampled VM
-    memory. Local measurements and qualification limits are in `bench/README.md`.
-
-  * Coverage regressions cover output and verbose highlighting, advisory version
-    boundaries, config uncertainty, atomic file writes, source edge cases and
-    scan/lexical context restoration. CI enforces 98% line coverage on its newest
-    runtime; fixtures are explicitly ignored by test discovery. Coverage excludes
-    only the harness, documentation-only legacy module and developer diff helper.
-  * Version-check I/O is isolated for deterministic cache, response and TLS-option
-    tests without network requests. Unknown SARIF finding types now receive a
-    null rule ID as intended instead of raising during report generation.
-
-  * WebSocket sockets enabled by default, including two-argument declarations and
-    `websocket: true`, now inherit endpoint origin checks. Explicitly disabled
-    WebSockets remain excluded and socket-specific checks retain precedence.
-  * HEEx detects `phx-no-curly-interpolation` as an attribute name during tag
-    parsing. The same text in a quoted or expression attribute value cannot
-    suppress XSS findings in the element's body.
-  * Lockfile dependency advisories require the Hex package name to match the
-    checked package. A dependency alias for another package no longer produces
-    that package's advisories.
-
-  * Adversarial scan regressions: dynamic socket options, literal router pipeline
-    statements and access on a literal keyword list no longer abort a scan.
-    Unknown socket options produce low-confidence findings. WebSocket origin
-    defaults are isolated to each endpoint module in a source file.
-  * Named function captures and inline HEEx retain their lexical aliases and
-    import selections, including renamed aliases. Qualified `raw` pipes in
-    templates are detected. HTML comments and script/style text cannot change
-    brace-interpolation scope or introduce findings from literal markup.
-  * `XSS.SendResp` tracks rebindings before each response, including branches,
-    pattern matches, callbacks and call arguments. An outer connection's content
-    type cannot suppress a response on a new binding; unchanged bindings and
-    explicit content-type setters retain their existing handling. These fixes can add findings for
-    previously missed sinks; existing finding locations and fingerprints remain
-    unchanged.
-  * SARIF percent-encodes reserved filename characters, including `#`, `?`, `%`
-    and `:`, so they remain part of the artifact path. JSON filenames and skip
-    fingerprints are unchanged.
+  * **Newly supported unsafe patterns can produce additional findings.** HEEx,
+    inline templates, lexical resolution, response rebindings, and configuration
+    fixes can reveal previously missed sinks. Corrected lockfile package matching
+    can remove false dependency advisories.
+  * **Invalid invocations and failed output writes now fail explicitly.** Check
+    project roots, scan options, and output permissions if an invocation previously
+    exited successfully without scanning or writing its report.
+  * Existing check names, finding types, CLI flags, JSON finding fields, original
+    ASTs, existing finding locations, and current/legacy fingerprint calculations
+    are preserved. SARIF artifact paths are corrected as described above. The
+    minimum supported Elixir version remains `~> 1.12`.
 
 ## v0.15.0
   * Bug fixes
