@@ -69,6 +69,9 @@ defmodule Sobelow.Config.CSWH do
   defp check_socket_with_default({_, _, [_, _, options]}, default),
     do: check_socket_options(options, default)
 
+  defp check_socket_with_default({_, _, [_, _]}, default),
+    do: check_websocket_options([], default)
+
   defp check_socket_with_default(_, _), do: {false, :high}
 
   defp check_socket_options([{:websocket, options} | _], default) when is_list(options) do
@@ -79,14 +82,15 @@ defmodule Sobelow.Config.CSWH do
     end
   end
 
-  defp check_socket_options([{:websocket, enabled} | _], _default)
-       when enabled in [true, false],
-       do: {false, :high}
+  defp check_socket_options([{:websocket, false} | _], _default), do: {false, :high}
+
+  defp check_socket_options([{:websocket, true} | _], default),
+    do: check_websocket_options([], default)
 
   defp check_socket_options([{:websocket, _dynamic} | _], _default), do: {true, :low}
 
   defp check_socket_options([_ | t], default), do: check_socket_options(t, default)
-  defp check_socket_options([], _default), do: {false, :high}
+  defp check_socket_options([], default), do: check_websocket_options([], default)
 
   defp check_websocket_options(options, default) do
     origin = Keyword.get(options, :check_origin, default)

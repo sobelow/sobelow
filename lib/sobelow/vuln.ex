@@ -67,7 +67,9 @@ defmodule Sobelow.Vuln do
              with {:ok, source} <- Sobelow.Scan.source(lockfile),
                   do: Code.string_to_quoted(source)
            end),
-         {^package, {:{}, _, [:hex, _, version | _]}} <- List.keyfind(entries, package, 0),
+         {^package, {:{}, _, [:hex, hex_package, version | _]}} <-
+           List.keyfind(entries, package, 0),
+         true <- is_atom(hex_package) and Atom.to_string(hex_package) == package,
          true <- is_binary(version) do
       {lockfile, version}
     else

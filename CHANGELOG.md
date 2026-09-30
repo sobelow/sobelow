@@ -91,6 +91,16 @@
     tests without network requests. Unknown SARIF finding types now receive a
     null rule ID as intended instead of raising during report generation.
 
+  * WebSocket sockets enabled by default, including two-argument declarations and
+    `websocket: true`, now inherit endpoint origin checks. Explicitly disabled
+    WebSockets remain excluded and socket-specific checks retain precedence.
+  * HEEx detects `phx-no-curly-interpolation` as an attribute name during tag
+    parsing. The same text in a quoted or expression attribute value cannot
+    suppress XSS findings in the element's body.
+  * Lockfile dependency advisories require the Hex package name to match the
+    checked package. A dependency alias for another package no longer produces
+    that package's advisories.
+
 ## v0.15.0
   * Bug fixes
     * `Config.Secrets` no longer crashes the scan when a secret is written as

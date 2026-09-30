@@ -74,6 +74,73 @@ defmodule Sobelow.EffectiveConfigTest do
     assert [%{"confidence" => "low"}] = scan("basic") |> findings_for("Config.CSWH")
   end
 
+  for {form, socket} <- [
+        {"two arguments", ~s|socket "/socket", BasicWeb.UserSocket|},
+        {"websocket: true", ~s|socket "/socket", BasicWeb.UserSocket, websocket: true|},
+        {"empty options", ~s|socket "/socket", BasicWeb.UserSocket, []|},
+        {"other transport options", ~s|socket "/socket", BasicWeb.UserSocket, longpoll: true|}
+      ] do
+    test "#{form} inherits the endpoint origin check" do
+      socket = unquote(socket)
+
+      temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+      defmodule BasicWeb.Endpoint do
+        use Phoenix.Endpoint, otp_app: :basic
+        #{socket}
+      end
+      """)
+
+      temp_fixture_file("basic", "config/prod.exs", """
+      config :basic, BasicWeb.Endpoint, check_origin: false
+      """)
+
+      assert [%{"confidence" => "high", "line" => 3}] =
+               scan("basic") |> findings_for("Config.CSWH")
+
+      temp_fixture_file("basic", "config/prod.exs", """
+      config :basic, BasicWeb.Endpoint, check_origin: true
+      """)
+
+      assert [] == scan("basic") |> findings_for("Config.CSWH")
+    end
+  end
+
+  test "disabled WebSockets and explicit origin checks override an unsafe endpoint default" do
+    temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+    defmodule BasicWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/disabled", BasicWeb.UserSocket, websocket: false, longpoll: true
+      socket "/checked", BasicWeb.UserSocket, websocket: [check_origin: true]
+      socket "/allowlist", BasicWeb.UserSocket, websocket: [check_origin: ["https://example.com"]]
+      socket "/conn", BasicWeb.UserSocket, websocket: [check_origin: :conn]
+    end
+    """)
+
+    temp_fixture_file("basic", "config/prod.exs", """
+    config :basic, BasicWeb.Endpoint, check_origin: false
+    """)
+
+    assert [] == scan("basic") |> findings_for("Config.CSWH")
+  end
+
+  test "default-enabled sockets retain low confidence for dynamic endpoint origin checks" do
+    temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+    defmodule BasicWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/implicit", BasicWeb.UserSocket
+      socket "/explicit", BasicWeb.UserSocket, websocket: true
+      socket "/other", BasicWeb.UserSocket, longpoll: true
+    end
+    """)
+
+    temp_fixture_file("basic", "config/runtime.exs", """
+    config :basic, BasicWeb.Endpoint, check_origin: origin_setting()
+    """)
+
+    assert [%{"confidence" => "low"}, %{"confidence" => "low"}, %{"confidence" => "low"}] =
+             scan("basic") |> findings_for("Config.CSWH")
+  end
+
   defp production_hsts(report) do
     findings_for(report, "Config.HSTS") |> Enum.filter(&(Path.basename(&1["file"]) == "prod.exs"))
   end
