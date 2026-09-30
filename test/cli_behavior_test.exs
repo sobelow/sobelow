@@ -2,7 +2,8 @@ defmodule Sobelow.CLIBehaviorTest do
   use Sobelow.CoverageCase, async: false
 
   test "escript entry point and deprecated verbose flag retain their public behavior" do
-    assert capture_io(fn -> Mix.Tasks.Sobelow.main(["--version", "--private"]) end) =~ "0.15.0"
+    assert capture_io(fn -> Mix.Tasks.Sobelow.main(["--version", "--private"]) end) ==
+             "#{Application.spec(:sobelow, :vsn)}\n"
 
     output =
       capture_io(fn -> Mix.Tasks.Sobelow.run(["--version", "--private", "--with-code"]) end)

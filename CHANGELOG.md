@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.16.0
 
   * Bug fixes
     * `XSS.Raw` no longer reports calls to a benign local `raw` helper with the matching

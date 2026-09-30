@@ -24,7 +24,11 @@ defmodule Sobelow.CompatibilityTest do
 
   test "existing findings retain the 0.15.0 output and fingerprint contracts" do
     expected = @fixture |> File.read!() |> Jason.decode!()
-    assert scan("basic") == expected["report"]
+    # The release version changes; the complete historical findings stay fixed.
+    expected_report =
+      Map.put(expected["report"], "sobelow_version", to_string(Application.spec(:sobelow, :vsn)))
+
+    assert scan("basic") == expected_report
 
     contracts =
       Sobelow.FindingLog.log()
