@@ -4,6 +4,7 @@ defmodule Sobelow.CompatibilityTest do
   # Parser metadata is part of the historical hash. This capture qualifies
   # hashes on its runtime; output and rule contracts apply on the full matrix.
   @captured_parser String.starts_with?(System.version(), "1.20.")
+  @parser_family System.version() |> String.split(".") |> Enum.take(2) |> Enum.join(".")
 
   test "existing findings retain the 0.15.0 output and fingerprint contracts" do
     expected = @fixture |> File.read!() |> Jason.decode!()
@@ -48,8 +49,38 @@ defmodule Sobelow.CompatibilityTest do
     {stdout, _stderr} = scan_io("basic", format: "sarif")
     results = hd(Jason.decode!(stdout)["runs"])["results"]
     strip_hashes = fn results -> Enum.map(results, &Map.delete(&1, "partialFingerprints")) end
-    assert strip_hashes.(results) == strip_hashes.(expected["sarif_results"])
+    expected_results = release_columns(expected["sarif_results"])
+    assert strip_hashes.(results) == strip_hashes.(expected_results)
     if @captured_parser, do: assert(results == expected["sarif_results"])
+  end
+
+  # Elixir changed both qualified-call and EEx column metadata. These columns
+  # come from the unmodified release on each older parser, not the new scanner.
+  # Keep every result field, including both columns, in the comparison.
+  defp release_columns(results) do
+    captures =
+      "test/fixtures/compatibility/v0_15_0_columns.json"
+      |> File.read!()
+      |> Jason.decode!()
+      |> Map.fetch!("captures")
+
+    case Map.get(captures, @parser_family) do
+      nil ->
+        results
+
+      %{"columns" => columns} ->
+        Enum.map(results, fn result ->
+          column = Map.fetch!(columns, result["ruleId"])
+
+          update_in(
+            result,
+            ["locations", Access.all(), "physicalLocation", "region"],
+            fn region ->
+              Map.merge(region, %{"startColumn" => column, "endColumn" => column})
+            end
+          )
+        end)
+    end
   end
 
   for fixture <- ["v0_15_0.skips", "legacy.skips"] do
