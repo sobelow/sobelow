@@ -3,6 +3,7 @@ defmodule Sobelow.HEEx do
 
   @void_tags ~w(area base br col embed hr img input link meta param source track wbr)
   @tag ~r/\A<(\/?)([\w.:-]+)/
+  @disable_attribute ~r/\Aphx-no-curly-interpolation(?:\s|=|\/?>)/
 
   def ast(source, file, line \\ 1) do
     if not String.valid?(source), do: syntax_error(file, line, 1)
@@ -26,10 +27,10 @@ defmodule Sobelow.HEEx do
   defp scan("<" <> _ = source, file, line, column, stack, asts) do
     case Regex.run(@tag, source) do
       [_prefix, closing, name] ->
-        {size, tag_asts} = tag(source, file, line, column, nil, 0, [])
+        {size, tag_asts, disabled?} = tag(source, file, line, column, nil, 0, [], false)
         tag = binary_part(source, 0, size)
         tag_asts = if closing == "", do: tag_asts, else: []
-        stack = update_stack(stack, tag, closing, String.downcase(name))
+        stack = update_stack(stack, tag, closing, String.downcase(name), disabled?)
         advance(source, byte_size(tag), file, line, column, stack, Enum.reverse(tag_asts) ++ asts)
 
       _ ->
@@ -55,16 +56,23 @@ defmodule Sobelow.HEEx do
 
   # Find the end of a tag and collect its expressions together. Attribute
   # expressions are parsed once, with the same source positions as body ones.
-  defp tag("", _file, _line, _column, _quote, size, asts),
-    do: {size, Enum.reverse(asts)}
+  defp tag("", _file, _line, _column, _quote, size, asts, disabled?),
+    do: {size, Enum.reverse(asts), disabled?}
 
-  defp tag(source, file, line, column, quote, size, asts) do
+  defp tag(source, file, line, column, quote, size, asts, disabled?) do
     <<char::utf8, rest::binary>> = source
     width = byte_size(<<char::utf8>>)
 
     case {quote, char} do
       {nil, ?>} ->
-        {size + width, Enum.reverse(asts)}
+        {size + width, Enum.reverse(asts), disabled?}
+
+      {nil, char} when char in [?\s, ?\t, ?\n, ?\r, ?\f] ->
+        # Only attribute names outside quoted values and Elixir expressions
+        # can disable interpolation. Expression values are consumed below.
+        disabled? = disabled? or Regex.match?(@disable_attribute, rest)
+        {line, column} = location(<<char::utf8>>, line, column)
+        tag(rest, file, line, column, nil, size + width, asts, disabled?)
 
       {nil, ?{} ->
         case expression(rest, file, line, column + 1) do
@@ -72,21 +80,21 @@ defmodule Sobelow.HEEx do
             consumed = binary_part(source, 0, length + 1)
             {line, column} = location(consumed, line, column)
             rest = binary_part(source, length + 1, byte_size(source) - length - 1)
-            tag(rest, file, line, column, nil, size + length + 1, [ast | asts])
+            tag(rest, file, line, column, nil, size + length + 1, [ast | asts], disabled?)
 
           nil ->
             syntax_error(file, line, column + 1)
         end
 
       {nil, char} when char in [?", ?'] ->
-        tag(rest, file, line, column + 1, char, size + width, asts)
+        tag(rest, file, line, column + 1, char, size + width, asts, disabled?)
 
       {^char, _} ->
-        tag(rest, file, line, column + 1, nil, size + width, asts)
+        tag(rest, file, line, column + 1, nil, size + width, asts, disabled?)
 
       _ ->
         {line, column} = location(<<char::utf8>>, line, column)
-        tag(rest, file, line, column, quote, size + width, asts)
+        tag(rest, file, line, column, quote, size + width, asts, disabled?)
     end
   end
 
@@ -129,22 +137,18 @@ defmodule Sobelow.HEEx do
       line: line
   end
 
-  defp update_stack(stack, _tag, "/", name) do
+  defp update_stack(stack, _tag, "/", name, _disabled?) do
     case Enum.split_while(stack, &(elem(&1, 0) != name)) do
       {_, [_ | rest]} -> rest
       _ -> stack
     end
   end
 
-  defp update_stack(stack, tag, "", name) do
+  defp update_stack(stack, tag, "", name, disabled?) do
     if name in @void_tags or String.ends_with?(tag, "/>") do
       stack
     else
-      disabled =
-        name in ["script", "style"] or
-          Regex.match?(~r/\sphx-no-curly-interpolation(?:\s|=|>)/, tag)
-
-      [{name, disabled} | stack]
+      [{name, disabled? or name in ["script", "style"]} | stack]
     end
   end
 

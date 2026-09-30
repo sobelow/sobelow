@@ -2,6 +2,55 @@ defmodule Sobelow.HEExTest do
   use ExUnit.Case, async: true
   alias Sobelow.{HEEx, Parse}
 
+  for {kind, attribute} <- [
+        {"double quoted", ~S|title=" phx-no-curly-interpolation "|},
+        {"single quoted", ~S|title=' phx-no-curly-interpolation '|},
+        {"attribute value after equals", ~S|title = " phx-no-curly-interpolation "|},
+        {"expression", ~S|title={" phx-no-curly-interpolation "}|},
+        {"expression with quotes", ~S|title={"\" phx-no-curly-interpolation \""}|},
+        {"different name", ~S|data-phx-no-curly-interpolation="true"|}
+      ] do
+    test "#{kind} attribute content cannot disable body interpolation" do
+      source = "<div #{unquote(attribute)}>{raw(@name)}</div>"
+      ast = HEEx.ast(source, "attribute.heex")
+      assert [raw] = Parse.get_meta_template_fun(ast).raw
+      assert Parse.get_fun_line(raw) == 1
+      assert Parse.get_fun_column(raw) == String.length("<div #{unquote(attribute)}>{") + 1
+    end
+  end
+
+  test "only real disable attributes suppress nested body expressions" do
+    source = ~S|<div title=" phx-no-curly-interpolation " phx-no-curly-interpolation>
+    <span>{raw(@disabled)}</span>
+    </div>
+    <div title={" phx-no-curly-interpolation "}>{raw(@enabled)}</div>|
+
+    assert [raw] =
+             source
+             |> HEEx.ast("attribute.heex")
+             |> Parse.get_meta_template_fun()
+             |> Map.fetch!(:raw)
+
+    assert Parse.get_fun_line(raw) == 4
+  end
+
+  test "real disable attributes after expressions and across lines keep their scope" do
+    source = ~S|<section title={" phx-no-curly-interpolation "}
+      phx-no-curly-interpolation={false}>
+      {raw(@disabled)}
+      <span>{raw(@nested)}</span>
+    </section>
+    <span>{raw(@enabled)}</span>|
+
+    assert [raw] =
+             source
+             |> HEEx.ast("attribute.heex")
+             |> Parse.get_meta_template_fun()
+             |> Map.fetch!(:raw)
+
+    assert Parse.get_fun_line(raw) == 6
+  end
+
   test "multiple attributes, quoted braces and unicode retain exact AST locations" do
     source = ~S|<div title="}" data={raw(@first)} other={raw(%{value: "}"}.value)}>
     café {raw(@second)}

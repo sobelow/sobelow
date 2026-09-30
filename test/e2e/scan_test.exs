@@ -322,6 +322,16 @@ defmodule SobelowTest.E2E.ScanTest do
   end
 
   describe "known dependency advisories" do
+    test "a Plug dependency name pointing to another Hex package emits no Plug advisories" do
+      temp_fixture_file(
+        "basic",
+        "mix.lock",
+        ~s|%{"plug" => {:hex, :other_package, "1.3.0"}}|
+      )
+
+      assert [] == Enum.filter(finding_modules(scan("basic")), &String.starts_with?(&1, "Vuln."))
+    end
+
     test "reads a locked Hex version when deps are absent" do
       temp_fixture_file(
         "basic",

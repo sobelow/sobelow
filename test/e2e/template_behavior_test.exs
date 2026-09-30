@@ -1,6 +1,18 @@
 defmodule Sobelow.TemplateBehaviorTest do
   use Sobelow.ScanCase, async: false
 
+  test "a disable directive inside an attribute value cannot hide a template XSS finding" do
+    path =
+      temp_fixture_file("basic", "lib/basic_web/controllers/page_html/index.html.heex", """
+      <div title=" phx-no-curly-interpolation ">{raw(@user_input)}</div>
+      """)
+
+    assert [%{"line" => 1}] =
+             scan("basic")
+             |> findings_for("XSS.Raw")
+             |> Enum.filter(&String.ends_with?(&1["file"], path))
+  end
+
   for format <- ["json", "txt", "compact", "flycheck", "quiet"] do
     test "a local render assign retains medium confidence in #{format} output" do
       path =
