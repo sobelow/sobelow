@@ -3,14 +3,22 @@
 ## Unreleased
 
   * Bug fixes
-    * `XSS.Raw` no longer reports calls to a local `raw` helper with the matching
+    * `XSS.Raw` no longer reports calls to a benign local `raw` helper with the matching
       arity, including defaults, guards, pipes, captures, and inline HEEx. Local
       definitions stay within their module; qualified Phoenix calls and
-      implicitly imported template helpers retain detection. (#44)
+      implicitly imported template helpers retain detection. Helpers returning
+      dynamic `{:safe, value}` output or wrapping another `raw` call retain
+      their caller's original findings, locations, and fingerprints. (#44)
     * `XSS.SendResp` now recognizes `put_resp_header(conn, "content-type", type)`
       on the response connection, including piped, aliased, nested, and assigned
-      calls. HTML and unknown types still report; discarded, later, unrelated,
-      or locally shadowed setters cannot suppress findings. (#45)
+      calls. HTML, SVG, malformed, and unknown types still report; other XML
+      and PDF document types retain low-confidence findings. Discarded, later,
+      unrelated, locally shadowed, or ambiguously imported setters cannot
+      suppress findings. Known unrelated response headers retain the connection's
+      content type, and MIME parameters do not change its classification. (#45)
+    * `XSS.Raw` now respects explicit imports of unrelated `raw` helpers. Unknown
+      raw macros and delegates retain detection. Older inline lexical contexts
+      without local-signature metadata remain supported.
     * Invalid project roots, roots with no scannable source files, invalid scan
       options, and unwritable output files now fail with actionable errors.
     * Repeated scans in the same VM now start with fresh findings, template, and

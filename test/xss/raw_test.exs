@@ -104,6 +104,75 @@ defmodule SobelowTest.XSS.RawTest do
     assert {[_], _, _} = Raw.parse_raw_def(ast)
   end
 
+  test "an explicit import of another raw helper is not a Phoenix call" do
+    assert [%Finding{fun_name: :local_import}] =
+             findings("""
+             defmodule Helpers do
+               import OtherHelpers, only: [raw: 1]
+               def direct(input), do: raw(input)
+               def piped(input), do: input |> raw()
+               def captured(inputs), do: Enum.map(inputs, &raw/1)
+               def local_import(input) do
+                 import Phoenix.HTML, only: [raw: 1]
+                 Phoenix.HTML.raw(input)
+               end
+             end
+             """)
+  end
+
+  test "unresolved raw macros and delegates remain possible sinks" do
+    for definition <- [
+          "defmacro raw(input), do: quote(do: Phoenix.HTML.raw(unquote(input)))",
+          "defdelegate raw(input), to: Phoenix.HTML"
+        ] do
+      assert [%Finding{fun_name: :unsafe}] =
+               findings("""
+               defmodule Helpers do
+                 #{definition}
+                 def unsafe(input), do: raw(input)
+               end
+               """)
+    end
+  end
+
+  test "a local raw helper returning unsafe HTML retains the caller's original finding" do
+    for body <- ["{:safe, input}", "Phoenix.HTML.raw(input)"] do
+      results =
+        findings("""
+        defmodule Helpers do
+          def unsafe(input), do: raw(input)
+          def raw(input), do: #{body}
+        end
+        """)
+
+      assert [%Finding{vuln_line_no: 2, confidence: :high} = caller] =
+               Enum.filter(results, &(&1.fun_name == :unsafe))
+
+      assert Macro.to_string(caller.vuln_source) == "raw(input)"
+    end
+  end
+
+  test "an unsafe implementation cannot borrow safety from a default declaration or another clause" do
+    for implementation <- [
+          ~S"""
+          def raw(input, options \\ [])
+          def raw(input, _options), do: {:safe, input}
+          """,
+          """
+          def raw(input) when is_binary(input), do: {:safe, input}
+          def raw(_input), do: 42
+          """
+        ] do
+      assert [%Finding{vuln_line_no: 2}] =
+               findings("""
+               defmodule Helpers do
+                 def unsafe(input), do: raw(input)
+                 #{implementation}
+               end
+               """)
+    end
+  end
+
   defp findings(source) do
     source
     |> Code.string_to_quoted!(columns: true)

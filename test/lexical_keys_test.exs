@@ -28,6 +28,17 @@ defmodule Sobelow.LexicalKeysTest do
     end)
   end
 
+  test "legacy inline scopes without local signatures remain usable" do
+    sigil = Code.string_to_quoted!(~s|~H"{raw(@input)}"|)
+    call = Code.string_to_quoted!("raw(input)")
+    env = %{aliases: %{}, imports: %{}, repo?: false}
+
+    Lexical.with_context(%{sigil => env}, fn ->
+      assert Lexical.index_inline(call, sigil) == call
+      assert Lexical.unqualified?(call, :HTML)
+    end)
+  end
+
   test "AST keys remain available when deterministic encoding is unavailable" do
     Process.put({Lexical, :binary_keys}, false)
 

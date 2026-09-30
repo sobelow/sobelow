@@ -5,6 +5,11 @@ defmodule Sobelow.XSS.Raw do
   This submodule checks for the use of `raw` in templates
   as this can lead to XSS vulnerabilities if taking user input.
 
+  Recognized local helpers and explicit imports of unrelated `raw` functions
+  are excluded. A local helper that returns dynamic `{:safe, value}` output or
+  calls another `raw` function retains its caller's finding. Unresolved raw
+  macros and delegates remain possible sinks.
+
   Raw checks can be ignored with the following command:
 
       $ mix sobelow -i XSS.Raw
