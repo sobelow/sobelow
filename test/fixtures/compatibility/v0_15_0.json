@@ -1,0 +1,449 @@
+{
+  "contracts": [
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/config/prod.exs",
+      "fingerprint": "2B5C077",
+      "legacy_fingerprint": "C15BCE8CAF49A8448E904E375BA0C396",
+      "type": "Config.HTTPS: HTTPS Not Enabled",
+      "vuln_line_no": 0,
+      "vuln_variable": null
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/config/prod.exs",
+      "fingerprint": "4CC5A33",
+      "legacy_fingerprint": "1639068E3FAFF4B5914267BED3641F06",
+      "type": "Config.Secrets: Hardcoded Secret",
+      "vuln_line_no": 5,
+      "vuln_variable": null
+    },
+    {
+      "confidence": "medium",
+      "filename": "test/fixtures/apps/basic/config/prod.secret.exs",
+      "fingerprint": "24A127C",
+      "legacy_fingerprint": "DC1216A52F1C1AAEFF9F84F34DA2B0C9",
+      "type": "Config.HSTS: HSTS Not Enabled",
+      "vuln_line_no": 0,
+      "vuln_variable": null
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+      "fingerprint": "2DFAA24",
+      "legacy_fingerprint": "B17A0B52CA5E908E950BC02B9D33C504",
+      "type": "Traversal.SendFile: Directory Traversal in `send_file`",
+      "vuln_line_no": 5,
+      "vuln_variable": "path"
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+      "fingerprint": "55B4891",
+      "legacy_fingerprint": "47A48FA23F203D3AAD9438CB4D6FAA98",
+      "type": "Traversal.FileModule: Directory Traversal in `File.read`",
+      "vuln_line_no": 9,
+      "vuln_variable": "name"
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+      "fingerprint": "5BEAEBF",
+      "legacy_fingerprint": "A2B0AB4A9DBB43D028B4FFE19B0C7AAC",
+      "type": "SQL.Query: SQL injection",
+      "vuln_line_no": 13,
+      "vuln_variable": "term"
+    },
+    {
+      "confidence": "low",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/controllers/page_html/index.html.heex",
+      "fingerprint": "1E7655A",
+      "legacy_fingerprint": "7B30DF26B5CD1D02B9D3A72C67CF039F",
+      "type": "XSS.Raw: XSS",
+      "vuln_line_no": 2,
+      "vuln_variable": "@user_input"
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/endpoint.ex",
+      "fingerprint": "420B1E9",
+      "legacy_fingerprint": "E490F5128D6A0BEBAF22277C68E603C4",
+      "type": "Config.CSWH: Cross-Site Websocket Hijacking",
+      "vuln_line_no": 4,
+      "vuln_variable": null
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/router.ex",
+      "fingerprint": "31E77BC",
+      "legacy_fingerprint": "2B4709FE8F78D3CF5C0787099C12C2A9",
+      "type": "Config.CSRF: Missing CSRF Protections",
+      "vuln_line_no": 5,
+      "vuln_variable": null
+    },
+    {
+      "confidence": "high",
+      "filename": "test/fixtures/apps/basic/lib/basic_web/router.ex",
+      "fingerprint": "382D7A4",
+      "legacy_fingerprint": "FA1C691CD72766789CB4AB8CE0B57AA2",
+      "type": "Config.Headers: Missing Secure Browser Headers",
+      "vuln_line_no": 5,
+      "vuln_variable": null
+    }
+  ],
+  "report": {
+    "findings": {
+      "high_confidence": [
+        {
+          "file": "test/fixtures/apps/basic/config/prod.exs",
+          "line": 0,
+          "type": "Config.HTTPS: HTTPS Not Enabled"
+        },
+        {
+          "file": "test/fixtures/apps/basic/config/prod.exs",
+          "key": "secret_key_base",
+          "line": 5,
+          "type": "Config.Secrets: Hardcoded Secret"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+          "line": 5,
+          "type": "Traversal.SendFile: Directory Traversal in `send_file`",
+          "variable": "path"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+          "line": 9,
+          "type": "Traversal.FileModule: Directory Traversal in `File.read`",
+          "variable": "name"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/controllers/page_controller.ex",
+          "line": 13,
+          "type": "SQL.Query: SQL injection",
+          "variable": "term"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/endpoint.ex",
+          "line": 4,
+          "type": "Config.CSWH: Cross-Site Websocket Hijacking"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/router.ex",
+          "line": 5,
+          "pipeline": "browser",
+          "type": "Config.CSRF: Missing CSRF Protections"
+        },
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/router.ex",
+          "line": 5,
+          "pipeline": "browser",
+          "type": "Config.Headers: Missing Secure Browser Headers"
+        }
+      ],
+      "low_confidence": [
+        {
+          "file": "test/fixtures/apps/basic/lib/basic_web/controllers/page_html/index.html.heex",
+          "line": 2,
+          "type": "XSS.Raw: XSS",
+          "variable": "@user_input"
+        }
+      ],
+      "medium_confidence": [
+        {
+          "file": "test/fixtures/apps/basic/config/prod.secret.exs",
+          "line": 0,
+          "type": "Config.HSTS: HSTS Not Enabled"
+        }
+      ]
+    },
+    "sobelow_version": "0.15.0",
+    "total_findings": 10
+  },
+  "revision": "4eb7d16",
+  "rule_ids": {
+    "CI.OS": "SBLW001",
+    "CI.System": "SBLW002",
+    "Config.CSP": "SBLW003",
+    "Config.CSRF": "SBLW005",
+    "Config.CSRFRoute": "SBLW004",
+    "Config.CSWH": "SBLW006",
+    "Config.HSTS": "SBLW008",
+    "Config.HTTPS": "SBLW009",
+    "Config.Headers": "SBLW007",
+    "Config.Secrets": "SBLW010",
+    "DOS.BinToAtom": "SBLW011",
+    "DOS.ListToAtom": "SBLW012",
+    "DOS.StringToAtom": "SBLW013",
+    "Misc.BinToTerm": "SBLW014",
+    "RCE.CodeModule": "SBLW015",
+    "RCE.EEx": "SBLW016",
+    "SQL.Query": "SBLW017",
+    "SQL.Stream": "SBLW018",
+    "Traversal.FileModule": "SBLW019",
+    "Traversal.SendDownload": "SBLW020",
+    "Traversal.SendFile": "SBLW021",
+    "Vuln.Coherence": "SBLW022",
+    "Vuln.CookieRCE": "SBLW023",
+    "Vuln.Ecto": "SBLW024",
+    "Vuln.HeaderInject": "SBLW025",
+    "Vuln.PlugNull": "SBLW026",
+    "Vuln.Redirect": "SBLW027",
+    "XSS.ContentType": "SBLW028",
+    "XSS.HTML": "SBLW029",
+    "XSS.Raw": "SBLW030",
+    "XSS.SendResp": "SBLW031"
+  },
+  "sarif_results": [
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "config/prod.exs"
+            },
+            "region": {
+              "endColumn": 1,
+              "endLine": 1,
+              "startColumn": 1,
+              "startLine": 1
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.HTTPS: HTTPS Not Enabled"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "2B5C077"
+      },
+      "ruleId": "SBLW009"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "config/prod.exs"
+            },
+            "region": {
+              "endColumn": 20,
+              "endLine": 5,
+              "startColumn": 20,
+              "startLine": 5
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.Secrets: Hardcoded Secret"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "4CC5A33"
+      },
+      "ruleId": "SBLW010"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/controllers/page_controller.ex"
+            },
+            "region": {
+              "endColumn": 5,
+              "endLine": 5,
+              "startColumn": 5,
+              "startLine": 5
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Traversal.SendFile: Directory Traversal in `send_file`"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "2DFAA24"
+      },
+      "ruleId": "SBLW021"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/controllers/page_controller.ex"
+            },
+            "region": {
+              "endColumn": 10,
+              "endLine": 9,
+              "startColumn": 10,
+              "startLine": 9
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Traversal.FileModule: Directory Traversal in `File.read`"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "55B4891"
+      },
+      "ruleId": "SBLW019"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/controllers/page_controller.ex"
+            },
+            "region": {
+              "endColumn": 23,
+              "endLine": 13,
+              "startColumn": 23,
+              "startLine": 13
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "SQL.Query: SQL injection"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "5BEAEBF"
+      },
+      "ruleId": "SBLW017"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/endpoint.ex"
+            },
+            "region": {
+              "endColumn": 3,
+              "endLine": 4,
+              "startColumn": 3,
+              "startLine": 4
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.CSWH: Cross-Site Websocket Hijacking"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "420B1E9"
+      },
+      "ruleId": "SBLW006"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/router.ex"
+            },
+            "region": {
+              "endColumn": 3,
+              "endLine": 5,
+              "startColumn": 3,
+              "startLine": 5
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.CSRF: Missing CSRF Protections"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "31E77BC"
+      },
+      "ruleId": "SBLW005"
+    },
+    {
+      "level": "error",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/router.ex"
+            },
+            "region": {
+              "endColumn": 3,
+              "endLine": 5,
+              "startColumn": 3,
+              "startLine": 5
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.Headers: Missing Secure Browser Headers"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "382D7A4"
+      },
+      "ruleId": "SBLW007"
+    },
+    {
+      "level": "warning",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "config/prod.secret.exs"
+            },
+            "region": {
+              "endColumn": 1,
+              "endLine": 1,
+              "startColumn": 1,
+              "startLine": 1
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "Config.HSTS: HSTS Not Enabled"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "24A127C"
+      },
+      "ruleId": "SBLW008"
+    },
+    {
+      "level": "warning",
+      "locations": [
+        {
+          "physicalLocation": {
+            "artifactLocation": {
+              "uri": "lib/basic_web/controllers/page_html/index.html.heex"
+            },
+            "region": {
+              "endColumn": 10,
+              "endLine": 2,
+              "startColumn": 10,
+              "startLine": 2
+            }
+          }
+        }
+      ],
+      "message": {
+        "text": "XSS.Raw: XSS"
+      },
+      "partialFingerprints": {
+        "primaryLocationLineHash": "1E7655A"
+      },
+      "ruleId": "SBLW030"
+    }
+  ]
+}

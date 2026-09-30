@@ -51,7 +51,7 @@ defmodule SobelowTest.Config.CSWHTest do
     assert vuln?
   end
 
-  test "checks loose check endpoint" do
+  test "an explicit origin allowlist is accepted" do
     endpoint = "./test/fixtures/cswh/soso_endpoint.ex"
 
     vuln? =
@@ -64,6 +64,19 @@ defmodule SobelowTest.Config.CSWHTest do
         end
       end)
 
-    assert vuln?
+    refute vuln?
+  end
+
+  test "check_origin: :conn validates the request host" do
+    refute CSWH.check_socket(socket("websocket: [check_origin: :conn]")) |> elem(0)
+  end
+
+  test "CSRF validation lowers confidence when origin checks are disabled" do
+    assert {true, :low} =
+             CSWH.check_socket(socket("websocket: [check_origin: false, check_csrf: true]"))
+  end
+
+  defp socket(options) do
+    Code.string_to_quoted!("socket \"/socket\", UserSocket, #{options}")
   end
 end

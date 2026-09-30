@@ -27,40 +27,100 @@ defmodule Sobelow.XSS.SendResp do
   end
 
   @doc false
-  def get_content_type({:put_resp_content_type, _, opts}), do: hd(opts)
-  def get_content_type({{_, _, [_, :put_resp_content_type]}, _, opts}), do: hd(opts)
+  def get_content_type({:put_resp_content_type, _, opts}), do: content_type_arg(opts)
+  def get_content_type({{_, _, [_, :put_resp_content_type]}, _, opts}), do: content_type_arg(opts)
+
+  defp content_type_arg([type, options]) when is_list(options), do: type
+  defp content_type_arg([_conn, type | _]), do: type
+  defp content_type_arg([type]), do: type
+  defp content_type_arg(_), do: nil
 
   @doc false
   def set_confidence(%Finding{} = finding) do
-    content_types =
-      finding.fun_source
-      |> Parse.get_funs_of_type(:put_resp_content_type)
-      |> Kernel.++(
-        Parse.get_aliased_funs_of_type(finding.fun_source, :put_resp_content_type, :Conn)
-      )
-      |> Enum.map(&get_content_type/1)
+    confidence =
+      case response_content_type(finding) do
+        :unknown -> finding.confidence
+        type when is_binary(type) -> if contains_html?(type), do: finding.confidence
+        _ -> :low
+      end
 
-    %{finding | confidence: get_confidence(finding, content_types)}
+    %{finding | confidence: confidence}
   end
 
-  defp get_confidence(finding, content_types) do
-    cond do
-      Enum.empty?(content_types) ->
-        finding.confidence
+  defp response_content_type(%Finding{fun_source: {_, _, [_head, [do: body]]}} = finding) do
+    statements =
+      case body do
+        {:__block__, _, list} -> list
+        single -> [single]
+      end
 
-      Enum.any?(content_types, &(!is_binary(&1))) ->
-        :low
-
-      Enum.all?(content_types, &contains_html?/1) ->
-        finding.confidence
-
-      Enum.any?(content_types, &contains_html?/1) ->
-        :low
-
-      true ->
-        nil
+    Enum.reduce_while(statements, %{}, fn statement, types ->
+      if contains_call?(statement, finding.vuln_source) do
+        conn = response_connection(statement, finding.vuln_source)
+        {:halt, connection_content_type(conn, types)}
+      else
+        {:cont, track_assignment(statement, types)}
+      end
+    end)
+    |> case do
+      types when is_map(types) -> :unknown
+      type -> type
     end
   end
+
+  defp response_content_type(_), do: :unknown
+
+  defp contains_call?(ast, call) do
+    {_, found?} = Macro.prewalk(ast, false, fn node, found? -> {node, found? or node == call} end)
+    found?
+  end
+
+  defp response_connection(statement, call) do
+    pipe =
+      statement
+      |> Parse.get_funs_of_type(:|>)
+      |> Enum.find(fn {:|>, _, [_, right]} -> right == call end)
+
+    case pipe do
+      {:|>, _, [left, _]} -> left
+      nil -> call |> elem(2) |> List.first()
+    end
+  end
+
+  defp track_assignment({:=, _, [{name, _, nil}, value]}, types) when is_atom(name) do
+    Map.put(types, name, connection_content_type(value, types))
+  end
+
+  defp track_assignment(_, types), do: types
+
+  defp connection_content_type({:|>, _, [_conn, setter]}, _types) do
+    if setter?(setter) do
+      setter |> elem(2) |> List.first()
+    else
+      # Another operation after setting the header may alter the connection.
+      # Keep the finding when that operation is not understood.
+      :unknown
+    end
+  end
+
+  defp connection_content_type({name, _, nil}, types) when is_atom(name) do
+    Map.get(types, name, :unknown)
+  end
+
+  defp connection_content_type(setter, _types) do
+    if setter?(setter), do: get_content_type(setter), else: :unknown
+  end
+
+  defp setter?({:put_resp_content_type, _, _}), do: true
+
+  defp setter?({{:., _, [{:__aliases__, _, aliases}, :put_resp_content_type]}, _, _} = setter) do
+    case Sobelow.Lexical.matches?(setter, :Conn) do
+      nil -> List.last(aliases) == :Conn
+      matched? -> matched?
+    end
+  end
+
+  defp setter?(_), do: false
 
   defp contains_html?(content_type) do
     content_type

@@ -17,37 +17,102 @@ defmodule Sobelow.Config.CSWH do
   @finding_type "Config.CSWH: Cross-Site Websocket Hijacking"
 
   use Sobelow.Finding
+  alias Sobelow.Config
 
   def run(endpoint) do
-    Parse.ast(endpoint)
+    ast = Parse.ast(endpoint)
+    default = endpoint_origin(ast)
+
+    ast
     |> Parse.get_funs_of_type(:socket)
-    |> handle_sockets(endpoint)
+    |> handle_sockets(endpoint, default)
   end
 
-  defp handle_sockets(sockets, endpoint) do
+  defp endpoint_origin(ast) do
+    module =
+      ast
+      |> Parse.get_funs_of_type(:defmodule)
+      |> Enum.find_value(fn
+        {:defmodule, _, [{:__aliases__, _, segments}, _]} -> segments
+        _ -> nil
+      end)
+
+    if module do
+      root = Sobelow.Utils.get_root()
+
+      values =
+        ["config.exs", "prod.exs", "runtime.exs"]
+        |> Enum.flat_map(fn file ->
+          case Config.effective_endpoint_config(
+                 :check_origin,
+                 Path.join([root, "config", file]),
+                 module
+               ) do
+            {:ok, value} -> [value]
+            :error -> []
+          end
+        end)
+
+      List.last(values)
+    end
+  end
+
+  defp handle_sockets(sockets, endpoint, default) do
     Enum.each(sockets, fn socket ->
-      check_socket(socket)
+      check_socket_with_default(socket, default)
       |> add_finding(socket, endpoint)
     end)
   end
 
-  def check_socket({_, _, [_, _, options]}) do
-    check_socket_options(options)
-  end
+  def check_socket(socket), do: check_socket_with_default(socket, nil)
 
-  def check_socket(_), do: {false, :high}
+  defp check_socket_with_default({_, _, [_, _, options]}, default),
+    do: check_socket_options(options, default)
 
-  defp check_socket_options([{:websocket, options} | _]) when is_list(options) do
-    case options[:check_origin] do
-      false -> {true, :high}
-      true -> {false, :high}
-      nil -> {false, :high}
-      _ -> {true, :low}
+  defp check_socket_with_default(_, _), do: {false, :high}
+
+  defp check_socket_options([{:websocket, options} | _], default) when is_list(options) do
+    if Keyword.keyword?(options) do
+      check_websocket_options(options, default)
+    else
+      {true, :low}
     end
   end
 
-  defp check_socket_options([_ | t]), do: check_socket_options(t)
-  defp check_socket_options([]), do: {false, :high}
+  defp check_socket_options([{:websocket, enabled} | _], _default)
+       when enabled in [true, false],
+       do: {false, :high}
+
+  defp check_socket_options([{:websocket, _dynamic} | _], _default), do: {true, :low}
+
+  defp check_socket_options([_ | t], default), do: check_socket_options(t, default)
+  defp check_socket_options([], _default), do: {false, :high}
+
+  defp check_websocket_options(options, default) do
+    origin = Keyword.get(options, :check_origin, default)
+
+    case origin do
+      false ->
+        if options[:check_csrf] == true, do: {true, :low}, else: {true, :high}
+
+      true ->
+        {false, :high}
+
+      :conn ->
+        {false, :high}
+
+      nil ->
+        {false, :high}
+
+      origins when is_list(origins) ->
+        if origins != [] and Enum.all?(origins, &is_binary/1),
+          do: {false, :high},
+          else: {true, :low}
+
+      _ ->
+        {true, :low}
+    end
+  end
 
   defp add_finding(nil, _, _), do: nil
   defp add_finding({false, _}, _, _), do: nil

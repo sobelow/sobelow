@@ -16,6 +16,10 @@ defmodule Sobelow.MetaLog do
     GenServer.call(__MODULE__, :get_templates)
   end
 
+  def get_templates(paths) do
+    GenServer.call(__MODULE__, {:get_templates, paths})
+  end
+
   def delete_raw(var, template_path) do
     GenServer.cast(__MODULE__, {:delete_raw, {var, template_path}})
   end
@@ -40,5 +44,9 @@ defmodule Sobelow.MetaLog do
 
   def handle_call(:get_templates, _from, log) do
     {:reply, log.templates, log}
+  end
+
+  def handle_call({:get_templates, paths}, _from, log) do
+    {:reply, Map.take(log.templates, paths), log}
   end
 end

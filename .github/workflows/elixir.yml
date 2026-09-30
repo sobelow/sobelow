@@ -72,4 +72,14 @@ jobs:
         run: mix credo --all --strict
 
       - name: Run Tests
+        if: ${{ !matrix.checkFormatAndWarnings }}
         run: mix test
+
+      - name: Run Tests and Enforce Coverage
+        if: ${{ matrix.checkFormatAndWarnings }}
+        run: mix coveralls.html
+
+      - name: Build and smoke test escript
+        run: |
+          MIX_ENV=prod mix escript.build
+          bash test/escript_smoke.sh

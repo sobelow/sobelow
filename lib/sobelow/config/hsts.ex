@@ -23,21 +23,29 @@ defmodule Sobelow.Config.HSTS do
       unless Enum.member?(@ignored_files, conf) do
         path = dir_path <> conf
 
-        Config.get_configs_by_file(:https, path)
-        |> handle_https(path)
+        statuses =
+          Config.effective_app_configs(path)
+          |> Enum.map(fn options ->
+            https = Config.setting_status(Keyword.get(options, :https))
+            hsts = Config.hsts_status(Keyword.get(options, :force_ssl))
+
+            cond do
+              https == :disabled or hsts == :enabled -> :enabled
+              https == :unknown or hsts == :unknown -> :unknown
+              true -> :disabled
+            end
+          end)
+
+        cond do
+          :disabled in statuses -> add_finding(path, :medium)
+          :unknown in statuses -> add_finding(path, :low)
+          true -> nil
+        end
       end
     end)
   end
 
-  defp handle_https(opts, file) do
-    # If HTTPS configs were found in any compile-time config file and there
-    # are no accompanying HSTS configs, add an HSTS finding.
-    if opts != [] && Enum.empty?(Config.get_configs(:force_ssl, file)) do
-      add_finding(file)
-    end
-  end
-
-  defp add_finding(file) do
+  defp add_finding(file, confidence) do
     reason = "HSTS configuration details could not be found in `#{Path.basename(file)}`."
 
     finding =
@@ -48,7 +56,7 @@ defmodule Sobelow.Config.HSTS do
         vuln_source: reason,
         vuln_line_no: 0,
         vuln_col_no: 0,
-        confidence: :medium
+        confidence: confidence
       }
       |> Finding.fetch_fingerprint()
 

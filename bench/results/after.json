@@ -1,0 +1,521 @@
+{
+  "runtime": {
+    "elixir": "1.20.4",
+    "otp": "29"
+  },
+  "system": {
+    "schedulers": 14,
+    "architecture": "aarch64-apple-darwin27.0.0"
+  },
+  "runs": 5,
+  "results": [
+    {
+      "signature": {
+        "contracts_sha256": "4908bfd6ad80ff542be1875b7102562a48d077ff6518d579c7467d2b58ec26b8",
+        "findings": 2000,
+        "output_sha256": "a9d6bbf4534e1619d683b1537cd4b9baf105fc0046c5ed9f7d6d4e78255dd16c"
+      },
+      "key": "mixed/quiet",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 23.198,
+      "min_ms": 22.04,
+      "max_ms": 25.075,
+      "median_reductions": 19428540,
+      "sampled_memory": {
+        "baseline_vm_bytes": 53681141,
+        "peak_vm_bytes": 70521805,
+        "increase_bytes": 16840664,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "4908bfd6ad80ff542be1875b7102562a48d077ff6518d579c7467d2b58ec26b8",
+        "findings": 2000,
+        "output_sha256": "24f8008e7f7733e06584c8226106c565765c4c7cb45141f2a76bf128518b5062"
+      },
+      "key": "mixed/json",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 41.971,
+      "min_ms": 40.491,
+      "max_ms": 42.967,
+      "median_reductions": 20621963,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54438431,
+        "peak_vm_bytes": 79819471,
+        "increase_bytes": 25381040,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "4908bfd6ad80ff542be1875b7102562a48d077ff6518d579c7467d2b58ec26b8",
+        "findings": 2000,
+        "output_sha256": "c311088b8931796b236abead994fcc55dc7dd31780fc4b5c42f9cf025e29a7b4"
+      },
+      "key": "mixed/sarif",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 87.575,
+      "min_ms": 86.352,
+      "max_ms": 89.392,
+      "median_reductions": 22647384,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56339539,
+        "peak_vm_bytes": 99323579,
+        "increase_bytes": 42984040,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "969419a3f5c413960c7c1b08b2a27c5ea89d5c07f8aa4c118a7cdf5356b7aa49",
+        "findings": 200,
+        "output_sha256": "380b066839f1edb5ab0fe18635bd98ebc05648ca663bbfbc69ad10cb4339e171"
+      },
+      "key": "config/quiet",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 31.883,
+      "min_ms": 30.402,
+      "max_ms": 33.576,
+      "median_reductions": 7072361,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54553947,
+        "peak_vm_bytes": 92092995,
+        "increase_bytes": 37539048,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "969419a3f5c413960c7c1b08b2a27c5ea89d5c07f8aa4c118a7cdf5356b7aa49",
+        "findings": 200,
+        "output_sha256": "e1b9eb106d4fea21860040b4fa83ae2a74de3c5411818e00bc77c861c9f86a9e"
+      },
+      "key": "config/json",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 33.698,
+      "min_ms": 32.788,
+      "max_ms": 35.187,
+      "median_reductions": 7187438,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54985075,
+        "peak_vm_bytes": 93184419,
+        "increase_bytes": 38199344,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "969419a3f5c413960c7c1b08b2a27c5ea89d5c07f8aa4c118a7cdf5356b7aa49",
+        "findings": 200,
+        "output_sha256": "78e452371f3c03a422e34f59f5950dbb25ed9f0959242fb7c8a3d07bf156f3c3"
+      },
+      "key": "config/sarif",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 42.043,
+      "min_ms": 39.287,
+      "max_ms": 46.545,
+      "median_reductions": 7454572,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54770083,
+        "peak_vm_bytes": 96105851,
+        "increase_bytes": 41335768,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "5cc0ba05e675a235c10d033d69a253d220e087cf81203669d38ee761d8fce068",
+        "findings": 1200,
+        "output_sha256": "1362e0b7344591c5d4b6ccac1dcf24eb028d676829ed6b7cea883d2a13221161"
+      },
+      "key": "phoenix/quiet",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 17.233,
+      "min_ms": 16.201,
+      "max_ms": 17.61,
+      "median_reductions": 8126451,
+      "sampled_memory": {
+        "baseline_vm_bytes": 70772172,
+        "peak_vm_bytes": 88349692,
+        "increase_bytes": 17577520,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "5cc0ba05e675a235c10d033d69a253d220e087cf81203669d38ee761d8fce068",
+        "findings": 1200,
+        "output_sha256": "698e683db062a068fd9978bac08824fd4c05f2f3cfea2b7c6a60b093c5d4574a"
+      },
+      "key": "phoenix/json",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 29.106,
+      "min_ms": 27.847,
+      "max_ms": 29.495,
+      "median_reductions": 8918330,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54905748,
+        "peak_vm_bytes": 92519676,
+        "increase_bytes": 37613928,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "5cc0ba05e675a235c10d033d69a253d220e087cf81203669d38ee761d8fce068",
+        "findings": 1200,
+        "output_sha256": "9ba6e8495bf8565ab46f89d9a466caad22a4e0d996862ea9417b48755e853820"
+      },
+      "key": "phoenix/sarif",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 57.075,
+      "min_ms": 55.706,
+      "max_ms": 58.034,
+      "median_reductions": 10491111,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56349804,
+        "peak_vm_bytes": 98022740,
+        "increase_bytes": 41672936,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2c936874a4970c0de3155b2798d0b8a04434c71f2af755d8c18c16bba2a8e339",
+        "findings": 400,
+        "output_sha256": "86d2b3a42521272525ca5860536bae9c781276efa705c7de16eea90967dbbbc7"
+      },
+      "key": "pipelines/quiet",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 21.095,
+      "min_ms": 19.734,
+      "max_ms": 22.871,
+      "median_reductions": 33237612,
+      "sampled_memory": {
+        "baseline_vm_bytes": 60682828,
+        "peak_vm_bytes": 99795684,
+        "increase_bytes": 39112856,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2c936874a4970c0de3155b2798d0b8a04434c71f2af755d8c18c16bba2a8e339",
+        "findings": 400,
+        "output_sha256": "4b8187ec20a612d5a94106cf4da20051574b431472166eee30fc57de8dc56a99"
+      },
+      "key": "pipelines/json",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 25.562,
+      "min_ms": 24.138,
+      "max_ms": 26.303,
+      "median_reductions": 33480667,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54472340,
+        "peak_vm_bytes": 107977804,
+        "increase_bytes": 53505464,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2c936874a4970c0de3155b2798d0b8a04434c71f2af755d8c18c16bba2a8e339",
+        "findings": 400,
+        "output_sha256": "f14199e94d67ca280d27b1ed000875eabbbe6a3b2c7f2120ca2c14e34f118495"
+      },
+      "key": "pipelines/sarif",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 34.988,
+      "min_ms": 33.754,
+      "max_ms": 36.221,
+      "median_reductions": 33937646,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54472404,
+        "peak_vm_bytes": 108169180,
+        "increase_bytes": 53696776,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "cf50f3a894fe18afce3f889f403a23318c6ed67157bd72d8e07014a97ec32797",
+        "findings": 4000,
+        "output_sha256": "3d01ff7ec970a045ee690b6c4370672b2ada7800096fad40f16eb89a329a103c"
+      },
+      "key": "large-functions/quiet",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 25.678,
+      "min_ms": 15.591,
+      "max_ms": 28.363,
+      "median_reductions": 6942794,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55533028,
+        "peak_vm_bytes": 97664532,
+        "increase_bytes": 42131504,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "cf50f3a894fe18afce3f889f403a23318c6ed67157bd72d8e07014a97ec32797",
+        "findings": 4000,
+        "output_sha256": "3265bee3240ac14b735f29f41420237b88a48a4382458f201277bc54fcd9a640"
+      },
+      "key": "large-functions/json",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 66.654,
+      "min_ms": 57.115,
+      "max_ms": 73.098,
+      "median_reductions": 9320890,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54642076,
+        "peak_vm_bytes": 105367324,
+        "increase_bytes": 50725248,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "cf50f3a894fe18afce3f889f403a23318c6ed67157bd72d8e07014a97ec32797",
+        "findings": 4000,
+        "output_sha256": "7a802fa0a7def03bbffeaac2c6702a977043052c3d56cc611b5dcd6f3b814841"
+      },
+      "key": "large-functions/sarif",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 143.22,
+      "min_ms": 139.342,
+      "max_ms": 148.079,
+      "median_reductions": 13205611,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54462244,
+        "peak_vm_bytes": 161467676,
+        "increase_bytes": 107005432,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2040c9be8e22224052d808d690d264884b1f12981dba0265435f7a77d3b39e1a",
+        "findings": 2000,
+        "output_sha256": "a9d6bbf4534e1619d683b1537cd4b9baf105fc0046c5ed9f7d6d4e78255dd16c"
+      },
+      "key": "small-files/quiet",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 74.332,
+      "min_ms": 72.894,
+      "max_ms": 88.153,
+      "median_reductions": 22283182,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55482844,
+        "peak_vm_bytes": 75977284,
+        "increase_bytes": 20494440,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2040c9be8e22224052d808d690d264884b1f12981dba0265435f7a77d3b39e1a",
+        "findings": 2000,
+        "output_sha256": "6ef09c1f3dd00f79c8f8b2cf049bc347e106bd4d7ac5cff70ddaead270137682"
+      },
+      "key": "small-files/json",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 93.585,
+      "min_ms": 90.579,
+      "max_ms": 98.5,
+      "median_reductions": 23499643,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55225052,
+        "peak_vm_bytes": 86015564,
+        "increase_bytes": 30790512,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "2040c9be8e22224052d808d690d264884b1f12981dba0265435f7a77d3b39e1a",
+        "findings": 2000,
+        "output_sha256": "2217f43b7b1414e2deffc44ca533168c542c221cb5c3d874f492b8f87e7e2845"
+      },
+      "key": "small-files/sarif",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 137.427,
+      "min_ms": 133.998,
+      "max_ms": 140.784,
+      "median_reductions": 25583033,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56953900,
+        "peak_vm_bytes": 96849724,
+        "increase_bytes": 39895824,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "fb888775b01d741988833b712e9e8108d911963e3bf21663a3a87f96e83166de",
+        "findings": 4006,
+        "output_sha256": "0e399c4a9ec5ea9f9bfb5a0ba0560e5cd69c389daa75fb25d3980e28804397de"
+      },
+      "key": "heex/quiet",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 89.825,
+      "min_ms": 87.21,
+      "max_ms": 92.123,
+      "median_reductions": 12901628,
+      "sampled_memory": {
+        "baseline_vm_bytes": 59956916,
+        "peak_vm_bytes": 118309740,
+        "increase_bytes": 58352824,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "fb888775b01d741988833b712e9e8108d911963e3bf21663a3a87f96e83166de",
+        "findings": 4006,
+        "output_sha256": "8b40e8eaab971a8c2bdff0cebf6f66b0eaee3c0c441e4090408424bb60896565"
+      },
+      "key": "heex/json",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 134.336,
+      "min_ms": 132.904,
+      "max_ms": 137.221,
+      "median_reductions": 15333400,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56524964,
+        "peak_vm_bytes": 114320748,
+        "increase_bytes": 57795784,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "contracts_sha256": "fb888775b01d741988833b712e9e8108d911963e3bf21663a3a87f96e83166de",
+        "findings": 4006,
+        "output_sha256": "41e96114638ede6bedfcbb133347de7a750a47c7d7a2a8739dabfd688637d920"
+      },
+      "key": "heex/sarif",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 232.895,
+      "min_ms": 228.381,
+      "max_ms": 236.439,
+      "median_reductions": 20467362,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55758812,
+        "peak_vm_bytes": 147648980,
+        "increase_bytes": 91890168,
+        "interval_ms": 5
+      }
+    }
+  ],
+  "notes": [
+    "Five measured runs after warmup; all canonical contracts and output hashes matched the qualified reference.",
+    "Memory is sampled whole-VM memory during a separate untimed scan, not a precise per-scan allocation measure."
+  ]
+}

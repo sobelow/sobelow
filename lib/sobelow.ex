@@ -30,6 +30,10 @@ defmodule Sobelow do
   alias Sobelow.Vuln
 
   def run do
+    Sobelow.Scan.with_scan(&do_run/0)
+  end
+
+  defp do_run do
     project_root = get_env(:root) <> "/"
     version_check()
 
@@ -68,6 +72,21 @@ defmodule Sobelow do
         {libroot_meta_files, default_router}
       end
 
+    extra_meta_files =
+      if get_env(:include_scripts) do
+        ["scripts", "priv"]
+        |> Enum.map(&(project_root <> &1))
+        |> Enum.filter(&File.dir?/1)
+        |> Enum.flat_map(&get_meta_files/1)
+      else
+        []
+      end
+
+    if root_meta_files == [] and libroot_meta_files == [] and extra_meta_files == [] do
+      raise Sobelow.ScanError,
+            "No source files were found under the scan root. Check --root and source path options."
+    end
+
     default_router = get_router(tmp_default_router, phx_post_1_2?)
 
     {routers, endpoints} =
@@ -90,6 +109,7 @@ defmodule Sobelow do
       do: IO.puts(:stderr, print_banner())
 
     Application.put_env(:sobelow, :app_name, app_name)
+    Sobelow.Scan.configure(@submodules)
 
     # Config and Vuln are each a single unit of work, so there is nothing to
     # spread across schedulers. Running them directly keeps them off
@@ -100,14 +120,35 @@ defmodule Sobelow do
 
     allowed = allowed -- [Config, Vuln]
 
+    scan = Sobelow.Scan.current()
+
     root_and_libroot_tasks =
-      [root_meta_files, libroot_meta_files]
+      [root_meta_files, libroot_meta_files, extra_meta_files]
       |> Enum.concat()
       |> Task.async_stream(
         fn meta_file ->
-          meta_file.def_funs
-          |> combine_skips()
-          |> Enum.each(&get_fun_vulns(&1, meta_file, project_root, allowed))
+          Sobelow.Scan.attach(scan, fn ->
+            FindingLog.with_batch(fn ->
+              Fingerprint.with_batch(fn ->
+                Enum.each(meta_file.scan_contexts, fn context ->
+                  context_meta =
+                    Map.merge(
+                      Map.take(meta_file, [:filename, :file_path]),
+                      Map.drop(context, [:functions])
+                    )
+
+                  Enum.each(context.functions, fn {fun, lexical} ->
+                    get_fun_vulns(
+                      fun,
+                      Map.put(context_meta, :lexical, lexical),
+                      project_root,
+                      allowed
+                    )
+                  end)
+                end)
+              end)
+            end)
+          end)
         end,
         timeout: :infinity
       )
@@ -116,7 +157,13 @@ defmodule Sobelow do
       if Sobelow.XSS in allowed do
         Task.async_stream(
           template_meta_files,
-          fn {_, meta_file} -> Sobelow.XSS.get_template_vulns(meta_file) end,
+          fn {_, meta_file} ->
+            Sobelow.Scan.attach(scan, fn ->
+              FindingLog.with_batch(fn ->
+                Fingerprint.with_batch(fn -> Sobelow.XSS.get_template_vulns(meta_file) end)
+              end)
+            end)
+          end,
           timeout: :infinity
         )
       end
@@ -125,6 +172,8 @@ defmodule Sobelow do
     |> Enum.map(&List.wrap/1)
     |> Enum.concat()
     |> Enum.each(&Stream.run/1)
+
+    Sobelow.Scan.print_summary(get_env(:summary))
 
     if format() != "txt" do
       print_output()
@@ -139,11 +188,14 @@ defmodule Sobelow do
   end
 
   defp init_state(project_root, template_meta_files) do
-    FindingLog.start_link()
-    MetaLog.start_link()
-    Fingerprint.start_link()
+    Enum.each([FindingLog, MetaLog, Fingerprint], &start_fresh_state/1)
     load_ignored_fingerprints(project_root)
     MetaLog.add_templates(template_meta_files)
+  end
+
+  defp start_fresh_state(module) do
+    if pid = Process.whereis(module), do: GenServer.stop(pid, :normal)
+    {:ok, _pid} = module.start_link()
   end
 
   defp print_output do
@@ -169,37 +221,39 @@ defmodule Sobelow do
 
   defp print_std_or_file(details) do
     case get_env(:out) do
-      nil -> IO.puts(details)
-      "" -> IO.puts(details)
-      out -> File.write(out, details)
+      nil ->
+        IO.puts(details)
+
+      "" ->
+        IO.puts(details)
+
+      out ->
+        case File.write(out, details) do
+          :ok ->
+            :ok
+
+          {:error, reason} ->
+            raise Sobelow.ScanError, "Could not write #{out}: #{:file.format_error(reason)}"
+        end
     end
   end
 
   defp exit_with_status do
     exit_on = get_env(:exit_on)
-    finding_logs = FindingLog.log()
-
-    high_count = length(finding_logs[:high])
-    medium_count = length(finding_logs[:medium])
-    low_count = length(finding_logs[:low])
-
-    status =
-      case exit_on do
-        :high ->
-          if high_count > 0, do: 1
-
-        :medium ->
-          if high_count + medium_count > 0, do: 1
-
-        :low ->
-          if high_count + medium_count + low_count > 0, do: 1
-
-        _ ->
-          0
-      end
+    status = exit_status(exit_on, FindingLog.counts())
 
     if exit_on && !is_nil(status) do
       System.halt(status)
+    end
+  end
+
+  @doc false
+  def exit_status(exit_on, %{high: high, medium: medium, low: low}) do
+    case exit_on do
+      :high -> if high > 0, do: 1
+      :medium -> if high + medium > 0, do: 1
+      :low -> if high + medium + low > 0, do: 1
+      _ -> 0
     end
   end
 
@@ -238,11 +292,13 @@ defmodule Sobelow do
   end
 
   def loggable?(%Finding{} = finding, severity) do
-    legacy_skip = finding.legacy_fingerprint && Fingerprint.member?(finding.legacy_fingerprint)
-    new_skip = finding.fingerprint && Fingerprint.member?(finding.fingerprint)
+    skipped? =
+      get_env(:skip) &&
+        ((finding.legacy_fingerprint &&
+            Sobelow.Scan.ignored_fingerprint?(finding.legacy_fingerprint)) ||
+           (finding.fingerprint && Sobelow.Scan.ignored_fingerprint?(finding.fingerprint)))
 
-    !(get_env(:skip) && (new_skip || legacy_skip)) &&
-      meets_threshold?(severity)
+    !skipped? && meets_threshold?(severity)
   end
 
   def all_details do
@@ -268,10 +324,13 @@ defmodule Sobelow do
       format: get_env(:format),
       ignore: get_env(:ignored),
       ignore_files: relative_ignored_files(),
+      include_mix_tasks: get_env(:include_mix_tasks),
+      include_scripts: get_env(:include_scripts),
       out: get_env(:out),
       private: get_env(:private),
       router: get_env(:router),
       skip: get_env(:skip),
+      summary: get_env(:summary),
       threshold: get_env(:threshold),
       verbose: get_env(:verbose)
     ]
@@ -284,7 +343,11 @@ defmodule Sobelow do
       end
 
     if yes? do
-      File.write!(conf_file, inspect(conf, limit: :infinity, printable_limit: :infinity))
+      Sobelow.SafeWrite.write!(
+        conf_file,
+        inspect(conf, limit: :infinity, printable_limit: :infinity)
+      )
+
       MixIO.info("Updated .sobelow-conf")
     end
   end
@@ -321,9 +384,7 @@ defmodule Sobelow do
     get_env(:format)
   end
 
-  def get_env(key) do
-    Application.get_env(:sobelow, key)
-  end
+  def get_env(key), do: Sobelow.Scan.env(key)
 
   defp print_banner do
     """
@@ -356,17 +417,16 @@ defmodule Sobelow do
     case get_env(:router) do
       nil -> ""
       "" -> ""
-      router -> Path.expand(router)
+      router -> Path.expand(router, get_env(:root))
     end
   end
 
   defp do_get_router(tmp_default_router, _) do
     case get_env(:router) do
-      nil -> tmp_default_router
-      "" -> tmp_default_router
-      router -> router
+      nil -> Path.expand(tmp_default_router)
+      "" -> Path.expand(tmp_default_router)
+      router -> Path.expand(router, get_env(:root))
     end
-    |> Path.expand()
   end
 
   defp get_phoenix_files(meta_files, router) do
@@ -386,6 +446,8 @@ defmodule Sobelow do
 
     uniq_phoenix_files =
       if File.exists?(router) do
+        Sobelow.Scan.discover([router], fn _ -> false end)
+
         Map.update!(phoenix_files, :routers, fn routers ->
           Enum.uniq(routers ++ [router])
         end)
@@ -400,8 +462,9 @@ defmodule Sobelow do
     ignored_files = get_env(:ignored_files)
 
     Utils.template_files(root)
+    |> Sobelow.Scan.discover(&ignored_file?(&1, ignored_files))
     |> Enum.reject(&ignored_file?(&1, ignored_files))
-    |> Enum.map(&get_template_meta/1)
+    |> Sobelow.Scan.map(&get_template_meta/1)
     |> Map.new()
   end
 
@@ -426,23 +489,43 @@ defmodule Sobelow do
     ignored_files = get_env(:ignored_files)
 
     Utils.all_files(root)
+    |> Sobelow.Scan.discover(&ignored_file?(&1, ignored_files))
     |> Enum.reject(&ignored_file?(&1, ignored_files))
-    |> Enum.map(&get_file_meta/1)
+    |> Sobelow.Scan.map(&get_file_meta/1)
   end
 
   defp get_file_meta(filename) do
     # The one place every file in the project is read exactly once, so the place
     # to report a `# sobelow_skip` comment we could not make sense of.
     ast = Parse.ast_with_skip_warnings(filename)
-    meta_funs = Parse.get_meta_funs(ast)
-    def_funs = meta_funs.def_funs
+    {meta_funs, contexts} = Parse.file_metadata(ast)
     use_funs = meta_funs.use_funs
     import_funs = meta_funs.import_funs
+
+    lexical = Sobelow.Lexical.functions(ast)
+
+    scan_contexts =
+      Enum.map(contexts, fn context ->
+        functions =
+          context.def_funs
+          |> combine_skips()
+          |> Enum.map(fn
+            {fun, _skips} = skipped -> {skipped, Map.get(lexical, fun)}
+            fun -> {fun, Map.get(lexical, fun)}
+          end)
+
+        %{
+          functions: functions,
+          controller?: Utils.controller?(context.use_funs),
+          imports_ecto_sql?: Utils.imports?(context.import_funs, [:Ecto, :Adapters, :SQL]),
+          ecto_repo?: Utils.uses?(context.use_funs, [:Ecto, :Repo])
+        }
+      end)
 
     %{
       filename: Utils.normalize_path(filename),
       file_path: Path.expand(filename),
-      def_funs: def_funs,
+      scan_contexts: scan_contexts,
       controller?: Utils.controller?(use_funs),
       router?: Utils.router?(use_funs),
       is_endpoint?: Utils.endpoint?(use_funs),
@@ -459,9 +542,13 @@ defmodule Sobelow do
       skips
       |> Enum.map(&get_mod/1)
 
-    Enum.each(mods -- skip_mods, fn mod ->
-      params = [fun, meta_file, web_root, skip_mods]
-      apply(mod, :get_vulns, params)
+    Sobelow.Lexical.with_context(meta_file.lexical, fn ->
+      Sobelow.FunctionAnalysis.with_fun(fun, fn ->
+        Enum.each(mods -- skip_mods, fn mod ->
+          params = [fun, meta_file, web_root, skip_mods]
+          apply(mod, :get_vulns, params)
+        end)
+      end)
     end)
   end
 
@@ -513,8 +600,7 @@ defmodule Sobelow do
     each application should be scanned separately.
     """
 
-    MixIO.error(message)
-    System.halt(0)
+    raise Sobelow.ScanError, message
   end
 
   defp clear_skip(project_root) do
@@ -582,9 +668,22 @@ defmodule Sobelow do
   # to the end of it. Kept behind `--legacy-skips` for anyone whose tooling
   # depends on the file being append-only.
   defp append_skips(cfile, entries) do
-    {:ok, iofile} = :file.open(cfile, [:append])
-    :file.write(iofile, ["\n", entries |> sort_skips() |> Enum.join("\n")])
-    :file.close(iofile)
+    result =
+      with {:ok, iofile} <- :file.open(cfile, [:append]) do
+        try do
+          :file.write(iofile, ["\n", entries |> sort_skips() |> Enum.join("\n")])
+        after
+          :file.close(iofile)
+        end
+      end
+
+    case result do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        raise Sobelow.ScanError, "Could not append #{cfile}: #{:file.format_error(reason)}"
+    end
   end
 
   # Sorting only the newly appended entries leaves the file as a series of
@@ -594,8 +693,14 @@ defmodule Sobelow do
   defp rewrite_skips(cfile, entries) do
     existing =
       case File.read(cfile) do
-        {:ok, contents} -> contents |> String.split("\n") |> Enum.map(&String.trim/1)
-        {:error, _} -> []
+        {:ok, contents} ->
+          contents |> String.split("\n") |> Enum.map(&String.trim/1)
+
+        {:error, :enoent} ->
+          []
+
+        {:error, reason} ->
+          raise Sobelow.ScanError, "Could not read #{cfile}: #{:file.format_error(reason)}"
       end
 
     lines =
@@ -604,7 +709,7 @@ defmodule Sobelow do
       |> Enum.uniq()
       |> sort_skips()
 
-    File.write!(cfile, Enum.join(lines, "\n") <> "\n")
+    Sobelow.SafeWrite.write!(cfile, Enum.join(lines, "\n") <> "\n")
   end
 
   defp sort_skips(entries), do: Enum.sort_by(entries, &skip_sort_key/1)
@@ -646,10 +751,14 @@ defmodule Sobelow do
     cfile = project_root <> @skips
 
     if File.exists?(cfile) do
-      {:ok, iofile} = :file.open(cfile, [:read])
+      case :file.open(cfile, [:read]) do
+        {:ok, iofile} ->
+          :file.read_line(iofile) |> load_ignored_fingerprints(iofile)
+          :file.close(iofile)
 
-      :file.read_line(iofile) |> load_ignored_fingerprints(iofile)
-      :file.close(iofile)
+        {:error, _} ->
+          nil
+      end
     end
   end
 
@@ -688,27 +797,11 @@ defmodule Sobelow do
   end
 
   defp version_check do
-    if get_env(:private) do
-      nil
-    else
-      config = version_check_file()
-      home = Path.dirname(config)
-
-      # An unwritable home directory is not a reason to fail a scan.
-      case File.mkdir_p(home) do
-        :ok -> version_check(config)
-        {:error, _} -> nil
-      end
-    end
-  end
-
-  defp version_check(config) do
-    time = DateTime.utc_now() |> DateTime.to_unix()
-
-    case last_version_check(config) do
-      {:ok, timestamp} when time - 12 * 60 * 60 <= timestamp -> nil
-      _ -> maybe_prompt_update(time, config)
-    end
+    unless get_env(:private), do: Sobelow.VersionCheck.run(version_check_file(), @v)
+  rescue
+    _ -> nil
+  catch
+    :exit, _ -> nil
   end
 
   @doc false
@@ -735,67 +828,12 @@ defmodule Sobelow do
 
   defp parse_version_check(_), do: :error
 
-  defp get_sobelow_version do
-    {:ok, _} = Application.ensure_all_started(:ssl)
-
-    {:ok, _} = Application.ensure_all_started(:inets)
-    {:ok, _} = :inets.start(:httpc, [{:profile, :sobelow}])
-
-    url = ~c"https://sobelow.io/version"
-
-    http_options = [
-      ssl: [
-        verify: :verify_none
-        # We cannot use exclusively use OTP 25+ yet, but when we can - uncomment the following few lines
-        # verify: :verify_peer,
-        # cacertfile: :public_key.cacerts_get()
-      ],
-      timeout: 10_000
-    ]
-
-    IO.puts(:stderr, "Checking Sobelow version...\n")
-
-    case :httpc.request(:get, {url, []}, http_options, []) do
-      {:ok, {{_, 200, _}, _, vsn}} ->
-        Version.parse!(String.trim(to_string(vsn)))
-
-      _ ->
-        MixIO.error("Error fetching version number.\n")
-        @v
-    end
-  after
-    :inets.stop(:httpc, :sobelow)
+  @doc false
+  def parse_remote_version(body) when is_binary(body) or is_list(body) do
+    body |> to_string() |> String.trim() |> Version.parse()
   end
 
-  defp maybe_prompt_update(time, cfile) do
-    installed_vsn = Version.parse!(@v)
-
-    cmp =
-      get_sobelow_version()
-      |> Version.compare(installed_vsn)
-
-    case cmp do
-      :gt ->
-        MixIO.error("""
-        A new version of Sobelow is available:
-        mix archive.install hex sobelow
-        """)
-
-      _ ->
-        nil
-    end
-
-    timestamp = "sobelow-" <> to_string(time)
-
-    case :file.open(cfile, [:write, :read]) do
-      {:ok, iofile} ->
-        :ok = :file.pwrite(iofile, 0, timestamp)
-        :ok = :file.close(iofile)
-
-      _ ->
-        File.write(cfile, timestamp)
-    end
-  end
+  def parse_remote_version(_), do: :error
 
   def get_mod(mod_string) do
     case mod_string do
@@ -824,6 +862,8 @@ defmodule Sobelow do
       "Config.CSWH" -> Sobelow.Config.CSWH
       "Vuln" -> Sobelow.Vuln
       "Vuln.CookieRCE" -> Sobelow.Vuln.CookieRCE
+      # Keep the old rule name accepted for ignores and skips.
+      "Vuln.Plug" -> Sobelow.Vuln.CookieRCE
       "Vuln.HeaderInject" -> Sobelow.Vuln.HeaderInject
       "Vuln.PlugNull" -> Sobelow.Vuln.PlugNull
       "Vuln.Redirect" -> Sobelow.Vuln.Redirect
@@ -845,8 +885,12 @@ defmodule Sobelow do
   end
 
   def get_ignored do
-    get_env(:ignored)
-    |> Enum.map(&get_mod/1)
+    Sobelow.Scan.ignored(fn -> get_env(:ignored) |> Enum.map(&get_mod/1) end)
+  end
+
+  @doc false
+  def allowed_checks(category, submodules, skips \\ []) do
+    Sobelow.Scan.allowed_checks(category, fn -> submodules -- get_ignored() end) -- skips
   end
 
   def vuln?({vars, _, _}) do

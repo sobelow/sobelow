@@ -15,42 +15,29 @@ defmodule Sobelow.XSS.Raw do
   use Sobelow.Finding
 
   def run(fun, meta_file, _, nil) do
-    confidence = if !meta_file.controller?, do: :low
-
-    Finding.init(@finding_type, meta_file.filename, confidence)
-    |> Finding.multi_from_def(fun, parse_raw_def(fun))
-    |> Enum.each(&Print.add_finding(&1))
+    run_direct(fun, meta_file)
   end
 
   def run(fun, meta_file, _web_root, controller) do
+    run_direct(fun, meta_file)
+
     {vars, _, {fun_name, line_no}} = parse_render_def(fun)
     filename = meta_file.filename
-    templates = Sobelow.MetaLog.get_templates()
 
-    tmp_template_root =
-      templates
-      |> Map.keys()
-      |> List.first()
+    paths =
+      Enum.flat_map(vars, fn {_finding, {template, _refs, _vars}} ->
+        template_paths(filename, controller, template_name(template))
+      end)
 
-    template_root =
-      case tmp_template_root do
-        nil -> ""
-        path -> String.split(path, "/templates/") |> List.first()
-      end
+    # Take one snapshot per function, containing only its possible templates.
+    # Earlier renders can delete raw entries; later renders in this function
+    # must still see the snapshot used by the historical correlation logic.
+    templates = if paths == [], do: %{}, else: Sobelow.MetaLog.get_templates(paths)
 
     Enum.each(vars, fn {finding, {template, ref_vars, vars}} ->
-      template =
-        cond do
-          is_atom(template) -> Atom.to_string(template) <> ".html"
-          is_binary(template) -> template
-          true -> ""
-        end
+      template = template_name(template)
 
-      maybe_template_path =
-        (template_root <> "/templates/" <> controller <> "/" <> template <> ".eex")
-        |> Utils.normalize_path()
-
-      {raw_funs, template_path} = get_rf_tp(templates, maybe_template_path)
+      {raw_funs, template_path} = get_rf_tp(templates, filename, controller, template)
 
       if raw_funs do
         raw_vals = Parse.get_template_vars(raw_funs.raw)
@@ -78,12 +65,39 @@ defmodule Sobelow.XSS.Raw do
     end)
   end
 
-  defp get_rf_tp(templates, template_path) do
-    if templates[template_path] do
-      {templates[template_path], template_path}
-    else
-      new_path = String.slice(template_path, 0..(String.length(template_path) - 4)) <> "heex"
-      {templates[new_path], new_path}
+  defp run_direct(fun, meta_file) do
+    confidence = if !meta_file.controller?, do: :low
+
+    Finding.init(@finding_type, meta_file.filename, confidence)
+    |> Finding.multi_from_def(
+      fun,
+      parse_raw_def(fun, Map.get(meta_file, :file_path, meta_file.filename))
+    )
+    |> Enum.each(&Print.add_finding(&1))
+  end
+
+  defp template_name(template) when is_atom(template), do: Atom.to_string(template) <> ".html"
+  defp template_name(template) when is_binary(template), do: template
+  defp template_name(_template), do: ""
+
+  defp get_rf_tp(templates, controller_file, controller, template) do
+    controller_file
+    |> template_paths(controller, template)
+    |> Enum.find_value({nil, nil}, fn path ->
+      if templates[path], do: {templates[path], path}
+    end)
+  end
+
+  defp template_paths(controller_file, controller, template) do
+    controllers_dir = Path.dirname(controller_file)
+    web_dir = Path.dirname(controllers_dir)
+
+    for directory <- [
+          Path.join([web_dir, "templates", controller]),
+          Path.join(controllers_dir, controller <> "_html")
+        ],
+        extension <- ["eex", "heex"] do
+      Path.join(directory, template <> "." <> extension)
     end
   end
 
@@ -107,8 +121,18 @@ defmodule Sobelow.XSS.Raw do
     {vars ++ pipevars, params, {fun_name, line_no}}
   end
 
-  def parse_raw_def(fun) do
-    Parse.get_fun_vars_and_meta(fun, 0, :raw, :HTML)
+  def parse_raw_def(fun, file \\ "inline HEEx") do
+    {vars, params, declaration} = Parse.get_fun_vars_and_meta(fun, 0, :raw, :HTML)
+
+    inline_vars =
+      fun
+      |> Parse.get_heex_raw_funs(file)
+      |> Enum.flat_map(fn raw ->
+        {raw_vars, _, _} = Parse.get_fun_vars_and_meta([raw], 0, :raw, :HTML)
+        raw_vars
+      end)
+
+    {vars ++ inline_vars, params, declaration}
   end
 
   defp add_finding(t_name, line_no, filename, fun_name, fun, var, severity, finding) do

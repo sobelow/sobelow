@@ -7,16 +7,66 @@ defmodule Sobelow.FindingLog do
     GenServer.start_link(__MODULE__, :ok, name: __MODULE__)
   end
 
-  def add(finding, severity) do
-    GenServer.cast(__MODULE__, {:add, finding, severity})
+  @batch_key {__MODULE__, :batch}
+
+  def with_batch(fun) do
+    if Process.get(@batch_key) do
+      fun.()
+    else
+      Process.put(@batch_key, %{entries: [], sources: %{}})
+
+      try do
+        fun.()
+      after
+        batch = Process.delete(@batch_key)
+        if batch.entries != [], do: GenServer.cast(__MODULE__, {:add_batch, batch})
+      end
+    end
   end
 
-  def log do
-    GenServer.call(__MODULE__, :log)
+  def add({details, finding, metadata}, severity) do
+    batch = Process.get(@batch_key) || %{entries: [], sources: %{}}
+    source = finding.fun_source
+
+    reference =
+      if source != nil do
+        Sobelow.FunctionAnalysis.fetch(source, :finding_source, &make_ref/0)
+      end
+
+    entry = {details, %{finding | fun_source: nil}, metadata, reference}
+
+    batch = %{
+      batch
+      | entries: [{severity, entry} | batch.entries],
+        sources:
+          if(reference, do: Map.put_new(batch.sources, reference, source), else: batch.sources)
+    }
+
+    if Process.get(@batch_key) do
+      Process.put(@batch_key, batch)
+    else
+      GenServer.cast(__MODULE__, {:add_batch, batch})
+    end
+
+    :ok
+  end
+
+  def log, do: read_log(true)
+  def counts, do: GenServer.call(__MODULE__, :counts)
+
+  defp read_log(sources?) do
+    {findings, sources} = GenServer.call(__MODULE__, {:log, sources?})
+
+    Map.new(findings, fn {severity, list} ->
+      {severity,
+       Enum.map(list, fn {details, finding, metadata, reference} ->
+         {details, %{finding | fun_source: Map.get(sources, reference)}, metadata}
+       end)}
+    end)
   end
 
   def json(vsn) do
-    %{high: highs, medium: meds, low: lows} = log()
+    %{high: highs, medium: meds, low: lows} = read_log(false)
     highs = normalize_json_log(highs)
     meds = normalize_json_log(meds)
     lows = normalize_json_log(lows)
@@ -36,7 +86,7 @@ defmodule Sobelow.FindingLog do
       %{
         version: "2.1.0",
         "$schema":
-          "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
+          "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json",
         runs: [
           %{
             tool: %{
@@ -47,7 +97,8 @@ defmodule Sobelow.FindingLog do
                 rules: Sobelow.rules()
               }
             },
-            results: sarif_results()
+            results: sarif_results(),
+            invocations: sarif_invocations()
           }
         ]
       },
@@ -55,8 +106,22 @@ defmodule Sobelow.FindingLog do
     )
   end
 
+  defp sarif_invocations do
+    notifications =
+      Sobelow.Scan.report().diagnostics
+      |> Enum.map(fn diagnostic ->
+        %{
+          level: "warning",
+          descriptor: %{id: Atom.to_string(diagnostic.status)},
+          message: %{text: diagnostic.message}
+        }
+      end)
+
+    [%{executionSuccessful: true, toolExecutionNotifications: notifications}]
+  end
+
   def sarif_results do
-    %{high: highs, medium: meds, low: lows} = log()
+    %{high: highs, medium: meds, low: lows} = read_log(false)
 
     highs = normalize_sarif_log(highs)
     meds = normalize_sarif_log(meds)
@@ -67,7 +132,7 @@ defmodule Sobelow.FindingLog do
   end
 
   def quiet do
-    total = total(log())
+    total = counts() |> Map.values() |> Enum.sum()
     findings = if total > 1, do: "findings", else: "finding"
 
     if total > 0 do
@@ -75,21 +140,46 @@ defmodule Sobelow.FindingLog do
     end
   end
 
-  defp total(%{high: highs, medium: meds, low: lows}) do
-    length(highs) + length(meds) + length(lows)
-  end
-
   def init(:ok) do
-    {:ok, %{:high => [], :medium => [], :low => []}}
+    {:ok,
+     %{
+       findings: %{high: [], medium: [], low: []},
+       counts: %{high: 0, medium: 0, low: 0},
+       sources: %{},
+       sorted: nil
+     }}
   end
 
-  def handle_cast({:add, finding, severity}, findings) do
-    {:noreply, Map.update!(findings, severity, &[finding | &1])}
+  def handle_cast({:add_batch, batch}, state) do
+    {findings, counts} =
+      Enum.reduce(Enum.reverse(batch.entries), {state.findings, state.counts}, fn {severity,
+                                                                                   entry},
+                                                                                  {findings,
+                                                                                   counts} ->
+        {Map.update!(findings, severity, &[entry | &1]), Map.update!(counts, severity, &(&1 + 1))}
+      end)
+
+    {:noreply,
+     %{
+       state
+       | findings: findings,
+         counts: counts,
+         sources: Map.merge(state.sources, batch.sources),
+         sorted: nil
+     }}
   end
 
-  def handle_call(:log, _from, findings) do
-    sorted = Map.new(findings, fn {severity, list} -> {severity, sort_findings(list)} end)
-    {:reply, sorted, findings}
+  def handle_call(:counts, _from, state), do: {:reply, state.counts, state}
+
+  def handle_call({:log, sources?}, _from, state) do
+    sorted =
+      state.sorted ||
+        Map.new(state.findings, fn {severity, list} ->
+          {severity, sort_findings(list)}
+        end)
+
+    sources = if sources?, do: state.sources, else: %{}
+    {:reply, {sorted, sources}, %{state | sorted: sorted}}
   end
 
   @doc false
@@ -114,7 +204,8 @@ defmodule Sobelow.FindingLog do
   # Location first, so a report reads in file order. The fingerprint is a final
   # tiebreaker so that two findings sharing a location still sort stably.
   defp sort_findings(findings) do
-    Enum.sort_by(findings, fn {_details, finding, _custom_metadata} ->
+    Enum.sort_by(findings, fn entry ->
+      finding = elem(entry, 1)
       {finding.filename, finding.vuln_line_no, finding.type, finding.fingerprint}
     end)
   end
@@ -141,7 +232,7 @@ defmodule Sobelow.FindingLog do
     # `get_mod/1` returns the finding module or nil. Unregistered finding types
     # (and category modules, which have no `id/0`) get a null ruleId.
     rule_id =
-      if (mod_struct && Code.ensure_loaded?(mod_struct)) and
+      if mod_struct != nil and Code.ensure_loaded?(mod_struct) and
            function_exported?(mod_struct, :id, 0) do
         apply(mod_struct, :id, [])
       end
@@ -155,7 +246,7 @@ defmodule Sobelow.FindingLog do
         %{
           physicalLocation: %{
             artifactLocation: %{
-              uri: finding.filename
+              uri: sarif_uri(finding.filename)
             },
             region: %{
               startLine: sarif_num(finding.vuln_line_no),
@@ -175,6 +266,25 @@ defmodule Sobelow.FindingLog do
 
   defp to_level(:high), do: "error"
   defp to_level(_), do: "warning"
+
+  # Only SARIF locations are rewritten. JSON filenames and the underlying
+  # Finding stay unchanged because both are part of existing skip workflows.
+  defp sarif_uri(filename) do
+    root = Sobelow.Scan.normalized_root()
+
+    relative =
+      if root == "" do
+        filename
+      else
+        String.replace_prefix(filename, root <> "/", "")
+      end
+
+    if relative == filename and File.regular?("/" <> filename) do
+      "file:///" <> URI.encode(filename)
+    else
+      URI.encode(relative)
+    end
+  end
 
   defp sarif_num(0), do: 1
   defp sarif_num(num), do: num

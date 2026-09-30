@@ -1,0 +1,497 @@
+{
+  "runtime": {
+    "elixir": "1.20.4",
+    "otp": "29"
+  },
+  "runs": 3,
+  "results": [
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "a9d6bbf4534e1619d683b1537cd4b9baf105fc0046c5ed9f7d6d4e78255dd16c"
+      },
+      "key": "mixed/quiet",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 47.721,
+      "min_ms": 45.052,
+      "max_ms": 51.667,
+      "median_reductions": 60681979,
+      "sampled_memory": {
+        "baseline_vm_bytes": 53580482,
+        "peak_vm_bytes": 81875506,
+        "increase_bytes": 28295024,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "24f8008e7f7733e06584c8226106c565765c4c7cb45141f2a76bf128518b5062"
+      },
+      "key": "mixed/json",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 67.476,
+      "min_ms": 64.977,
+      "max_ms": 67.612,
+      "median_reductions": 61790806,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54630300,
+        "peak_vm_bytes": 94253580,
+        "increase_bytes": 39623280,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "c311088b8931796b236abead994fcc55dc7dd31780fc4b5c42f9cf025e29a7b4"
+      },
+      "key": "mixed/sarif",
+      "dimensions": {
+        "source_files": 200,
+        "functions_per_file": 10,
+        "endpoint_settings": 400,
+        "template_interpolations": 0
+      },
+      "median_ms": 115.711,
+      "min_ms": 112.807,
+      "max_ms": 115.784,
+      "median_reductions": 64381641,
+      "sampled_memory": {
+        "baseline_vm_bytes": 57087968,
+        "peak_vm_bytes": 105722920,
+        "increase_bytes": 48634952,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 200,
+        "output_sha256": "380b066839f1edb5ab0fe18635bd98ebc05648ca663bbfbc69ad10cb4339e171"
+      },
+      "key": "config/quiet",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 34.745,
+      "min_ms": 34.013,
+      "max_ms": 35.657,
+      "median_reductions": 11180224,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54457616,
+        "peak_vm_bytes": 81446792,
+        "increase_bytes": 26989176,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 200,
+        "output_sha256": "e1b9eb106d4fea21860040b4fa83ae2a74de3c5411818e00bc77c861c9f86a9e"
+      },
+      "key": "config/json",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 37.31,
+      "min_ms": 33.677,
+      "max_ms": 37.564,
+      "median_reductions": 11312926,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56024496,
+        "peak_vm_bytes": 82633776,
+        "increase_bytes": 26609280,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 200,
+        "output_sha256": "78e452371f3c03a422e34f59f5950dbb25ed9f0959242fb7c8a3d07bf156f3c3"
+      },
+      "key": "config/sarif",
+      "dimensions": {
+        "source_files": 20,
+        "functions_per_file": 10,
+        "endpoint_settings": 4000,
+        "template_interpolations": 0
+      },
+      "median_ms": 44.602,
+      "min_ms": 43.162,
+      "max_ms": 49.237,
+      "median_reductions": 11641572,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55632272,
+        "peak_vm_bytes": 82367432,
+        "increase_bytes": 26735160,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 1200,
+        "output_sha256": "1362e0b7344591c5d4b6ccac1dcf24eb028d676829ed6b7cea883d2a13221161"
+      },
+      "key": "phoenix/quiet",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 120.501,
+      "min_ms": 115.699,
+      "max_ms": 125.156,
+      "median_reductions": 19310772,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54704429,
+        "peak_vm_bytes": 292497421,
+        "increase_bytes": 237792992,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 1200,
+        "output_sha256": "698e683db062a068fd9978bac08824fd4c05f2f3cfea2b7c6a60b093c5d4574a"
+      },
+      "key": "phoenix/json",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 131.434,
+      "min_ms": 131.031,
+      "max_ms": 133.222,
+      "median_reductions": 19999828,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54997037,
+        "peak_vm_bytes": 295998469,
+        "increase_bytes": 241001432,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 1200,
+        "output_sha256": "9ba6e8495bf8565ab46f89d9a466caad22a4e0d996862ea9417b48755e853820"
+      },
+      "key": "phoenix/sarif",
+      "dimensions": {
+        "source_files": 24,
+        "functions_per_file": 5,
+        "endpoint_settings": 20,
+        "template_interpolations": 960
+      },
+      "median_ms": 162.481,
+      "min_ms": 161.986,
+      "max_ms": 163.684,
+      "median_reductions": 21916850,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54492549,
+        "peak_vm_bytes": 294942093,
+        "increase_bytes": 240449544,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 400,
+        "output_sha256": "86d2b3a42521272525ca5860536bae9c781276efa705c7de16eea90967dbbbc7"
+      },
+      "key": "pipelines/quiet",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 105.828,
+      "min_ms": 105.102,
+      "max_ms": 109.781,
+      "median_reductions": 491289178,
+      "sampled_memory": {
+        "baseline_vm_bytes": 81077661,
+        "peak_vm_bytes": 151168941,
+        "increase_bytes": 70091280,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 400,
+        "output_sha256": "4b8187ec20a612d5a94106cf4da20051574b431472166eee30fc57de8dc56a99"
+      },
+      "key": "pipelines/json",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 110.14,
+      "min_ms": 109.958,
+      "max_ms": 115.547,
+      "median_reductions": 491513889,
+      "sampled_memory": {
+        "baseline_vm_bytes": 54867341,
+        "peak_vm_bytes": 162710581,
+        "increase_bytes": 107843240,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 400,
+        "output_sha256": "f14199e94d67ca280d27b1ed000875eabbbe6a3b2c7f2120ca2c14e34f118495"
+      },
+      "key": "pipelines/sarif",
+      "dimensions": {
+        "source_files": 40,
+        "functions_per_file": 10,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 128.484,
+      "min_ms": 127.895,
+      "max_ms": 130.531,
+      "median_reductions": 492112290,
+      "sampled_memory": {
+        "baseline_vm_bytes": 58995445,
+        "peak_vm_bytes": 176055365,
+        "increase_bytes": 117059920,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4000,
+        "output_sha256": "3d01ff7ec970a045ee690b6c4370672b2ada7800096fad40f16eb89a329a103c"
+      },
+      "key": "large-functions/quiet",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 2019.417,
+      "min_ms": 2005.522,
+      "max_ms": 2425.406,
+      "median_reductions": 150190814,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55212621,
+        "peak_vm_bytes": 3935805341,
+        "increase_bytes": 3880592720,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4000,
+        "output_sha256": "3265bee3240ac14b735f29f41420237b88a48a4382458f201277bc54fcd9a640"
+      },
+      "key": "large-functions/json",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 2342.193,
+      "min_ms": 1784.943,
+      "max_ms": 2501.852,
+      "median_reductions": 151479393,
+      "sampled_memory": {
+        "baseline_vm_bytes": 57735157,
+        "peak_vm_bytes": 3120253285,
+        "increase_bytes": 3062518128,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4000,
+        "output_sha256": "7a802fa0a7def03bbffeaac2c6702a977043052c3d56cc611b5dcd6f3b814841"
+      },
+      "key": "large-functions/sarif",
+      "dimensions": {
+        "source_files": 10,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 2600.385,
+      "min_ms": 2534.195,
+      "max_ms": 2678.627,
+      "median_reductions": 156845600,
+      "sampled_memory": {
+        "baseline_vm_bytes": 60822405,
+        "peak_vm_bytes": 4040710837,
+        "increase_bytes": 3979888432,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "a9d6bbf4534e1619d683b1537cd4b9baf105fc0046c5ed9f7d6d4e78255dd16c"
+      },
+      "key": "small-files/quiet",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 122.529,
+      "min_ms": 118.396,
+      "max_ms": 156.845,
+      "median_reductions": 63439209,
+      "sampled_memory": {
+        "baseline_vm_bytes": 1436425861,
+        "peak_vm_bytes": 1436425861,
+        "increase_bytes": 0,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "6ef09c1f3dd00f79c8f8b2cf049bc347e106bd4d7ac5cff70ddaead270137682"
+      },
+      "key": "small-files/json",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 118.148,
+      "min_ms": 113.316,
+      "max_ms": 120.119,
+      "median_reductions": 64311357,
+      "sampled_memory": {
+        "baseline_vm_bytes": 82723541,
+        "peak_vm_bytes": 82723541,
+        "increase_bytes": 0,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 2000,
+        "output_sha256": "2217f43b7b1414e2deffc44ca533168c542c221cb5c3d874f492b8f87e7e2845"
+      },
+      "key": "small-files/sarif",
+      "dimensions": {
+        "source_files": 1000,
+        "functions_per_file": 2,
+        "endpoint_settings": 20,
+        "template_interpolations": 0
+      },
+      "median_ms": 172.966,
+      "min_ms": 172.625,
+      "max_ms": 175.6,
+      "median_reductions": 66898509,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55556669,
+        "peak_vm_bytes": 100442277,
+        "increase_bytes": 44885608,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4006,
+        "output_sha256": "0e399c4a9ec5ea9f9bfb5a0ba0560e5cd69c389daa75fb25d3980e28804397de"
+      },
+      "key": "heex/quiet",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 245.254,
+      "min_ms": 242.148,
+      "max_ms": 268.444,
+      "median_reductions": 25118286,
+      "sampled_memory": {
+        "baseline_vm_bytes": 55735813,
+        "peak_vm_bytes": 127349565,
+        "increase_bytes": 71613752,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4006,
+        "output_sha256": "8b40e8eaab971a8c2bdff0cebf6f66b0eaee3c0c441e4090408424bb60896565"
+      },
+      "key": "heex/json",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 279.05,
+      "min_ms": 277.592,
+      "max_ms": 312.149,
+      "median_reductions": 27464001,
+      "sampled_memory": {
+        "baseline_vm_bytes": 56683661,
+        "peak_vm_bytes": 120500309,
+        "increase_bytes": 63816648,
+        "interval_ms": 5
+      }
+    },
+    {
+      "signature": {
+        "findings": 4006,
+        "output_sha256": "41e96114638ede6bedfcbb133347de7a750a47c7d7a2a8739dabfd688637d920"
+      },
+      "key": "heex/sarif",
+      "dimensions": {
+        "source_files": 1,
+        "functions_per_file": 1,
+        "endpoint_settings": 20,
+        "template_interpolations": 4000
+      },
+      "median_ms": 388.825,
+      "min_ms": 380.59,
+      "max_ms": 392.548,
+      "median_reductions": 33756338,
+      "sampled_memory": {
+        "baseline_vm_bytes": 69054429,
+        "peak_vm_bytes": 178750077,
+        "increase_bytes": 109695648,
+        "interval_ms": 5
+      }
+    }
+  ],
+  "notes": [
+    "Timing capture before this optimization batch, three measured runs after warmup.",
+    "Initial Finding map hashes used noncanonical Erlang encoding and are omitted. Output hashes were canonical.",
+    "Full canonical Finding contracts were separately qualified against prior matching, metadata, HEEx, fingerprint and collection paths."
+  ]
+}

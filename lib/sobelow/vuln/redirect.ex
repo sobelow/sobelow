@@ -9,7 +9,6 @@ defmodule Sobelow.Vuln.Redirect do
 
       $ mix sobelow -i Vuln.Redirect
   """
-  alias Sobelow.Config
   alias Sobelow.Vuln
 
   @uid 27
@@ -23,12 +22,8 @@ defmodule Sobelow.Vuln.Redirect do
   @vuln_vsn ~w(1.0.0 1.0.1 1.0.2 1.0.3 1.0.4 1.1.0 1.1.1 1.1.2 1.1.3 1.1.4 1.1.5 1.1.6 1.2.0 1.2.1 1.3.0-rc.0)
 
   def run(root) do
-    plug_conf = root <> "/deps/phoenix/mix.exs"
-
-    if File.exists?(plug_conf) do
-      vsn = Config.get_version(plug_conf)
-
-      if Enum.member?(@vuln_vsn, vsn) do
+    case Vuln.dependency_version(root, "phoenix") do
+      {plug_conf, vsn} when vsn in @vuln_vsn ->
         Vuln.print_finding(
           plug_conf,
           vsn,
@@ -37,7 +32,9 @@ defmodule Sobelow.Vuln.Redirect do
           "CVE-2017-1000163",
           "Redirect"
         )
-      end
+
+      _ ->
+        nil
     end
   end
 end

@@ -1,5 +1,96 @@
 # Changelog
 
+## Unreleased
+
+  * Scan reliability: missing or invalid project roots, and roots with no
+    scannable source files, now fail instead of exiting successfully; invalid
+    scan options and unwritable output files also fail.
+    Unreadable source files are skipped with a warning, and repeated scans in one
+    VM start with fresh findings and skip state. The optional version check uses
+    certificate verification when a trusted CA store is available and cannot
+    abort a scan on a malformed response. OTP 24 has no built-in CA-store API,
+    so its version notification is skipped.
+  * XSS: `XSS.Raw` now sees `{raw(...)}` in HEEx files and `~H` sigils, and
+    correlates controller renders with embedded `*_html` templates. These are
+    newly reported findings; existing finding types and fingerprints remain in
+    place. `XSS.SendResp` follows the connection passed to each response, so a
+    later or discarded content-type setter cannot suppress an earlier finding.
+  * Configuration: HTTPS and HSTS settings are checked for the scanned app and
+    their values, rather than treating any matching key as enabled. Empty CSP
+    policies are reported, while dynamic policies are low confidence. Explicit
+    WebSocket origin allowlists and `:conn` are recognized as checks; an enabled
+    CSRF check lowers confidence when origin checks are disabled. Sockets also
+    inherit endpoint origin settings from base, production, and runtime config
+    when they have no override.
+  * Paths and coverage: explicit router paths resolve from `--root`, and SARIF
+    locations are relative to the scan root, or use file URIs for external
+    files. `--include-mix-tasks` and
+    `--include-scripts` opt into additional source paths; defaults are unchanged.
+    File-local `use` and `import` now apply only to their own module. Confidence
+    grading follows direct local aliases before a sink without changing reported
+    variables or fingerprints.
+  * Dependency advisories: the existing fixed set of `Vuln.*` rules can read
+    literal Hex versions from `mix.lock` when `deps/` is absent. Nonliteral or
+    missing versions no longer abort the scan. This is not a general CVE feed.
+  * SARIF's `Vuln.CookieRCE` rule name now matches its existing result type and
+    rule ID, without changing the result or users' skip fingerprints.
+    `Config.CSRFRoute` is now listed in `mix help sobelow`.
+
+  * HEEx parsing now handles legacy EEx expressions inside `~H`, qualified
+    `Phoenix.HTML.raw`, HEEx comments, nested sigils, and Elixir comments. Brace
+    interpolation is disabled in script/style bodies and regions marked with
+    `phx-no-curly-interpolation`. Inline brace columns account for sigil prefixes
+    and heredoc indentation. Invalid HEEx expressions are skipped with a warning
+    (or exit 2 under `--strict`). Newly supported inline forms can add findings;
+    existing EEx finding locations and fingerprints are preserved.
+  * Static alias resolution recognizes renamed and grouped aliases, nested
+    module inheritance, function-local imports, and imported function arities
+    with `only`/`except`. Calls retain their original AST for fingerprints.
+    Implicit Phoenix controller imports retain their historical detection.
+  * HTTPS/HSTS use effective literal settings per endpoint, including ordered
+    overrides and nested keyword merges. One endpoint cannot satisfy another's
+    settings. Dynamic and conditional settings are reported at low confidence.
+  * `--summary` prints file counts on stderr. Non-strict scans warn about skipped
+    source/templates; SARIF includes invocation warnings and uses the published
+    OASIS schema URL. JSON finding fields remain unchanged.
+  * A cache of source reads, ASTs, lockfiles and dependency versions lives for one
+    scan and is released on completion or failure. A reproducible synthetic
+    benchmark is available in `bench/scan.exs`; results and limits are documented
+    in `bench/README.md`.
+  * `.sobelow-conf` saves and sorted skip rewrites are atomic, preserve Unix
+    permissions and follow symlinks. Unreadable existing skip files are preserved
+    and produce an actionable error. `--legacy-skips` retains append behaviour.
+  * Regression fixtures captured from 0.15.0 protect JSON/SARIF results, rule IDs,
+    fingerprints and both historical skip formats on the captured parser family.
+    Output/rule contracts and generated skip round-trips run on every matrix
+    entry. CI builds and smoke-tests the
+    escript on every supported Elixir/OTP combination, including exit codes.
+
+  * Scan performance: checks share function call, pipe and parameter analysis;
+    HEEx consumes brace candidates incrementally and parses attribute expressions
+    once. File/module metadata extraction shares a traversal, preparation uses
+    bounded workers, and lexical contexts avoid copying nested AST keys on OTP
+    releases with deterministic encoding support. Older runtimes retain AST keys.
+    Findings retain their original ASTs, confidence, locations and both hashes.
+  * Finding collection batches updates and retains each enclosing function source
+    once per batch. Quiet output and exit status use confidence counts; repeated
+    reports reuse sorted results. Controller correlation fetches only relevant
+    templates while preserving its snapshot per function. Scan settings, enabled
+    checks, paths and skip lookups are reused; per-worker cache counters avoid
+    contention. Public finding-log results and existing output formats are kept.
+  * Benchmarks now cover seven workloads and quiet/JSON/SARIF output, with complete
+    finding and output comparisons, reduction counts and separate sampled VM
+    memory. Local measurements and qualification limits are in `bench/README.md`.
+
+  * Coverage regressions cover output and verbose highlighting, advisory version
+    boundaries, config uncertainty, atomic file writes, source edge cases and
+    scan/lexical context restoration. CI enforces 98% line coverage on its newest
+    runtime; fixtures are explicitly ignored by test discovery. Coverage excludes
+    only the harness, documentation-only legacy module and developer diff helper.
+  * Version-check I/O is isolated for deterministic cache, response and TLS-option
+    tests without network requests. Unknown SARIF finding types now receive a
+    null rule ID as intended instead of raising during report generation.
+
 ## v0.15.0
   * Bug fixes
     * `Config.Secrets` no longer crashes the scan when a secret is written as

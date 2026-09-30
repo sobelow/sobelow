@@ -50,6 +50,7 @@ features or security checks, please open an issue!
 - [Modules](#modules)
 - [Usage Rules](#usage-rules)
 - [Umbrella Apps](#umbrella-apps)
+- [Development and Coverage](#development-and-coverage)
 - [Updates](#updates)
 
 ## Installation
@@ -98,12 +99,24 @@ relative to the application root.
   * `--ignore-files` - Ignore files. Accepts a comma-separated
   list of file names, e.g. `config/prod.exs`.
 
+  * `--include-mix-tasks` - Also scan `lib/mix/tasks/`.
+
+  * `--include-scripts` - Also scan `.exs` under `lib/`, and source files under
+  `scripts/` and `priv/`.
+
   * `--details` or `-d` - Get finding-type details. Accepts a
   single module name, e.g. `Config.CSRF`.
 
   * `--all-details` - Get details of all finding-types.
 
   * `--private` - Skip update checks.
+
+  * `--summary` - Print discovered, scanned, ignored, unreadable, unparseable,
+  and pending file counts on stderr. JSON findings keep their existing fields.
+  Non-strict scans warn when source or templates cannot be read or parsed;
+  SARIF also includes these warnings as invocation notifications.
+
+  * `--strict` - Exit 2 on a source or template parse failure.
 
   * `--router` - Specify router location. This only needs to be
   used if the router location is non-standard. Accepts a path
@@ -261,6 +274,38 @@ end
 ```
 
 If you wish to use configuration files in an umbrella app, create a `.sobelow-conf` in each child application.
+
+## Development and Coverage
+
+Run the tests and repository checks with:
+
+```sh
+mix test
+MIX_ENV=test mix coveralls.html
+mix test.all
+MIX_ENV=prod mix escript.build
+bash test/escript_smoke.sh
+```
+
+`mix coveralls.html` runs the full test suite, enforces the **98% line coverage
+minimum**, and writes `cover/excoveralls.html`. CI uses this command on its newest
+Elixir/OTP entry; other entries run `mix test`. `mix test.all` checks formatting,
+compiler warnings, dependencies and Credo, and does not run the tests.
+
+Coverage excludes the test harness, the deprecated documentation-only
+`Misc.FilePath` module, and the developer-only `--diff` command that launches
+external Mix processes. Fixture applications remain regression inputs and are
+explicitly ignored by test discovery; they and benchmark scripts are not in the
+compiled application paths. Modules with no executable lines display as covered
+without adding lines to the coverage total.
+
+Production security checks, CLI handling and defensive error paths stay in the
+coverage scope. VM termination cannot be measured in the parent test process, so
+the escript smoke tests also verify strict source/template/inline-template errors,
+failure and clean-scan exit thresholds, malformed config, and skip clearing in
+separate processes. Older-runtime fallbacks and unreachable defensive branches
+can leave a small gap on a single runtime; coverage does not imply every branch
+or supported runtime has been exercised.
 
 ## Updates
 When scanning a project, Sobelow will occasionally check for

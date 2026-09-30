@@ -158,11 +158,21 @@ Other useful flags:
 - `--quiet` — print a one-line count instead of findings.
 - `--compact` / `--flycheck` — single-line findings for editors and tooling.
 - `--strict` — treat a file Sobelow cannot parse as a hard error (exit 2) instead of
-  skipping it. Without it, unparseable files are silently skipped.
+  skipping it. Without it, Sobelow continues with the remaining files and warns
+  on stderr. SARIF includes file failures in invocation notifications.
+- `--summary` — print file counts on stderr without changing JSON findings.
+  Counts cover discovered source/template files and selected configuration
+  paths. `scanned` means successfully parsed; `pending` means discovered but
+  not parsed by an enabled check. Metadata reads such as dependency mixfiles
+  are cached but are not counted as scanned project source.
 - `--no-router` — for a project with no Phoenix router, such as a plain Elixir
   library. Without it Sobelow warns that it cannot find one, on every run. The
   router-dependent checks are skipped either way. Set it in `.sobelow-conf` as
   `router: :none`.
+- `--include-mix-tasks` — also scan `lib/mix/tasks/`.
+- `--include-scripts` — also scan `.exs` under `lib/`, plus source files under
+  `scripts/` and `priv/`. These paths are opt-in because many projects use them
+  for build-time code rather than request handling.
 
 ## What it will and will not find
 
@@ -172,7 +182,8 @@ only. A value laundered through a helper will usually come back as low confidenc
 or not at all.
 
 It also does not check dependencies for known CVEs in general — the `Vuln.*` checks
-cover a small fixed set of historical advisories by inspecting `deps/`. For real
+cover a small fixed set of historical advisories by reading installed dependency
+versions or literal Hex versions from `mix.lock`. For real
 dependency scanning use `mix hex.audit` (retired packages) alongside a dedicated
 tool such as MixAudit.
 
