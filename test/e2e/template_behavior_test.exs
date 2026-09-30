@@ -13,6 +13,69 @@ defmodule Sobelow.TemplateBehaviorTest do
              |> Enum.filter(&String.ends_with?(&1["file"], path))
   end
 
+  test "inline HEEx uses the aliases in scope at each sigil" do
+    path =
+      temp_fixture_file("basic", "lib/inline_aliases.ex", ~S'''
+      defmodule InlineAliases do
+        alias Phoenix.HTML, as: H
+        def vulnerable(assigns), do: ~H"<span>{H.raw(@input)}</span>"
+        def unrelated(assigns) do
+          alias Other.HTML
+          ~H"<span>{HTML.raw(@input)}</span>"
+        end
+        def outside(assigns), do: ~H"<span>{H.raw(@input)}</span>"
+      end
+      ''')
+
+    assert scan("basic")
+           |> findings_for("XSS.Raw")
+           |> Enum.filter(&String.ends_with?(&1["file"], path))
+           |> Enum.map(& &1["line"]) == [3, 8]
+  end
+
+  test "comments and script text cannot hide a later template finding" do
+    path =
+      temp_fixture_file("basic", "lib/basic_web/controllers/page_html/adversarial.html.heex", """
+      <!-- <div phx-no-curly-interpolation> -->
+      <script>const html = "<span data={1 +}>";</script>
+      <span>{raw(@input)}</span>
+      <script><%= raw @script %></script>
+      """)
+
+    assert scan("basic")
+           |> findings_for("XSS.Raw")
+           |> Enum.filter(&String.ends_with?(&1["file"], path))
+           |> Enum.map(& &1["line"]) == [3, 4]
+  end
+
+  test "piped raw calls retain their template assigns for qualified and bare sinks" do
+    path =
+      temp_fixture_file("basic", "lib/basic_web/controllers/page_html/piped.html.heex", """
+      <span>{@bare |> raw()}</span>
+      <span>{@qualified |> Phoenix.HTML.raw()}</span>
+      """)
+
+    assert scan("basic")
+           |> findings_for("XSS.Raw")
+           |> Enum.filter(&String.ends_with?(&1["file"], path))
+           |> Enum.map(&{&1["line"], &1["variable"]}) == [{1, "@bare"}, {2, "@qualified"}]
+  end
+
+  test "inline HEEx detects raw pipes through renamed aliases" do
+    path =
+      temp_fixture_file("basic", "lib/inline_pipes.ex", ~S'''
+      defmodule InlinePipes do
+        alias Phoenix.HTML, as: H
+        def render(assigns), do: ~H"<span>{@input |> H.raw()}</span>"
+      end
+      ''')
+
+    assert [%{"line" => 3, "variable" => "@input"}] =
+             scan("basic")
+             |> findings_for("XSS.Raw")
+             |> Enum.filter(&String.ends_with?(&1["file"], path))
+  end
+
   for format <- ["json", "txt", "compact", "flycheck", "quiet"] do
     test "a local render assign retains medium confidence in #{format} output" do
       path =

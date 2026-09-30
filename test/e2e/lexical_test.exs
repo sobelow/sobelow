@@ -122,6 +122,57 @@ defmodule Sobelow.LexicalTest do
     assert [%{"confidence" => "low"}] = results
   end
 
+  test "renamed and imported function captures retain lexical sink resolution" do
+    path =
+      temp_fixture_file("basic", "lib/captured_sinks.ex", """
+      defmodule CapturedSinks do
+        alias File, as: FS
+        alias System, as: OS
+        alias Ecto.Adapters.SQL, as: DB
+        import DB, only: [query: 3]
+        def files(paths), do: Enum.map(paths, &FS.read/1)
+        def commands(commands), do: Enum.map(commands, &OS.cmd/2)
+        def sql(queries), do: Enum.map(queries, &DB.query/3)
+        def imported(queries), do: Enum.map(queries, &query/3)
+      end
+      """)
+
+    report = scan("basic")
+
+    for {module, lines} <- [
+          {"Traversal.FileModule", [6]},
+          {"CI.System", [7]},
+          {"SQL.Query", [8, 9]}
+        ] do
+      assert report
+             |> findings_for(module)
+             |> Enum.filter(&String.ends_with?(&1["file"], path))
+             |> Enum.map(& &1["line"]) == lines
+    end
+  end
+
+  test "unrelated aliases and excluded captures cannot borrow a sink's name" do
+    path =
+      temp_fixture_file("basic", "lib/unrelated_captures.ex", """
+      defmodule UnrelatedCaptures do
+        alias Other.File
+        alias Other.SQL
+        import Ecto.Adapters.SQL, except: [query: 3]
+        def files(paths), do: Enum.map(paths, &File.read/1)
+        def sql(queries), do: Enum.map(queries, &SQL.query/3)
+        def excluded(queries), do: Enum.map(queries, &query/3)
+      end
+      """)
+
+    report = scan("basic")
+
+    for module <- ["Traversal.FileModule", "SQL.Query"] do
+      assert report
+             |> findings_for(module)
+             |> Enum.filter(&String.ends_with?(&1["file"], path)) == []
+    end
+  end
+
   test "nonliteral directives do not abort an otherwise scannable source" do
     temp_fixture_file("basic", "lib/nonliteral_directives.ex", """
     defmodule Directives do

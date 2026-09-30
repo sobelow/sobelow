@@ -57,6 +57,8 @@ defmodule Sobelow.XSS.SendResp do
     Enum.reduce_while(statements, %{}, fn statement, types ->
       if contains_call?(statement, finding.vuln_source) do
         conn = response_connection(statement, finding.vuln_source)
+
+        types = types_before(statement, finding.vuln_source, types)
         {:halt, connection_content_type(conn, types)}
       else
         {:cont, track_assignment(statement, types)}
@@ -75,6 +77,39 @@ defmodule Sobelow.XSS.SendResp do
     found?
   end
 
+  defp types_before(call, call, types), do: types
+
+  defp types_before({:cond, _, [[do: clauses]]}, call, types) do
+    case Enum.find(clauses, &contains_call?(&1, call)) do
+      {:->, _, [[condition], body]} ->
+        types_before([condition, body], call, types)
+
+      _ ->
+        types
+    end
+  end
+
+  defp types_before({:->, _, [patterns, body]}, call, types) do
+    # Callback arguments and case/rescue patterns shadow outer bindings. Pins
+    # and guard expressions do not bind variables.
+    types_before(body, call, Map.drop(types, bound_variables(patterns)))
+  end
+
+  defp types_before({_name, _, args}, call, types) when is_list(args),
+    do: types_before(args, call, types)
+
+  defp types_before({_key, value}, call, types), do: types_before(value, call, types)
+
+  defp types_before(nodes, call, types) when is_list(nodes) do
+    Enum.reduce_while(nodes, types, fn node, types ->
+      if contains_call?(node, call),
+        do: {:halt, types_before(node, call, types)},
+        else: {:cont, track_assignment(node, types)}
+    end)
+  end
+
+  defp types_before(_node, _call, types), do: types
+
   defp response_connection(statement, call) do
     pipe =
       statement
@@ -88,10 +123,40 @@ defmodule Sobelow.XSS.SendResp do
   end
 
   defp track_assignment({:=, _, [{name, _, nil}, value]}, types) when is_atom(name) do
+    types = track_assignment(value, types)
     Map.put(types, name, connection_content_type(value, types))
   end
 
+  defp track_assignment({kind, _, [pattern, value]}, types) when kind in [:=, :<-],
+    do: value |> track_assignment(types) |> Map.drop(bound_variables(pattern))
+
+  defp track_assignment({kind, _, [condition | _]}, types) when kind in [:if, :unless, :case],
+    do: track_assignment(condition, types)
+
+  defp track_assignment({kind, _, _}, types)
+       when kind in [:fn, :cond, :with, :for, :try, :->, :quote, :def, :defp],
+       do: types
+
+  defp track_assignment({_name, _, args}, types) when is_list(args),
+    do: Enum.reduce(args, types, &track_assignment/2)
+
+  defp track_assignment(nodes, types) when is_list(nodes),
+    do: Enum.reduce(nodes, types, &track_assignment/2)
+
+  defp track_assignment({_key, value}, types), do: track_assignment(value, types)
   defp track_assignment(_, types), do: types
+
+  defp bound_variables(patterns) do
+    {_, names} =
+      Macro.prewalk(patterns, [], fn
+        {:^, _, _}, names -> {[], names}
+        {:when, _, args}, names -> {Enum.drop(args, -1), names}
+        {name, _, nil} = node, names when is_atom(name) -> {node, [name | names]}
+        node, names -> {node, names}
+      end)
+
+    names
+  end
 
   defp connection_content_type({:|>, _, [_conn, setter]}, _types) do
     if setter?(setter) do

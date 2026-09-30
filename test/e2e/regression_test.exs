@@ -16,6 +16,37 @@ defmodule SobelowTest.E2E.RegressionTest do
     assert second == first
   end
 
+  test "accessing a literal keyword list cannot abort sink analysis" do
+    path =
+      temp_fixture_file("basic", "lib/keyword_access.ex", """
+      defmodule KeywordAccess do
+        def read(path), do: File.read([path: path][:path])
+      end
+      """)
+
+    assert [%{"line" => 2, "variable" => "path"}] =
+             scan("basic")
+             |> findings_for("Traversal.FileModule")
+             |> Enum.filter(&String.ends_with?(&1["file"], path))
+  end
+
+  test "literal statements in a router pipeline cannot abort config checks" do
+    temp_fixture_file("basic", "lib/basic_web/router.ex", """
+    defmodule BasicWeb.Router do
+      use BasicWeb, :router
+      pipeline :browser do
+        plug :accepts, ["html"]
+        plug :fetch_session
+        :ok
+      end
+    end
+    """)
+
+    report = scan("basic")
+    assert [_] = findings_for(report, "Config.CSRF")
+    assert [_] = findings_for(report, "Config.Headers")
+  end
+
   describe "Config.Secrets with values that are not plain string literals" do
     test "heredoc and escaped-quote secrets are reported instead of crashing the scan" do
       report = scan("secrets")

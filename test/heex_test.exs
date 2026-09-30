@@ -67,6 +67,43 @@ defmodule Sobelow.HEExTest do
              [{7, 22}, {7, 42}, {8, 11}]
   end
 
+  test "HTML comments cannot disable interpolation after the comment" do
+    source =
+      "<!-- <div phx-no-curly-interpolation> {raw(@comment)} -->\n<span>{raw(@input)}</span>"
+
+    assert [raw] =
+             source
+             |> HEEx.ast("comment.heex")
+             |> Parse.get_meta_template_fun()
+             |> Map.fetch!(:raw)
+
+    assert Parse.get_fun_line(raw) == 2
+    assert Parse.get_fun_column(raw) == 8
+  end
+
+  for tag <- ["script", "style"] do
+    test "#{tag} text cannot be interpreted as HTML attributes or closing ancestor tags" do
+      source = """
+      <div>
+        <#{unquote(tag)}>
+          "<span data={1 +}>"
+          "</div>{raw(@text)}"
+        </#{unquote(tag)}>
+        <span>{raw(@input)}</span>
+      </div>
+      """
+
+      assert [raw] =
+               source
+               |> HEEx.ast("text.heex")
+               |> Parse.get_meta_template_fun()
+               |> Map.fetch!(:raw)
+
+      assert Parse.get_fun_line(raw) == 6
+      assert Parse.get_fun_column(raw) == 10
+    end
+  end
+
   test "many body and attribute interpolations preserve all expressions in order" do
     source =
       Enum.map_join(1..3000, "\n", fn i ->

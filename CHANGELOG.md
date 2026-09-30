@@ -101,6 +101,24 @@
     checked package. A dependency alias for another package no longer produces
     that package's advisories.
 
+  * Adversarial scan regressions: dynamic socket options, literal router pipeline
+    statements and access on a literal keyword list no longer abort a scan.
+    Unknown socket options produce low-confidence findings. WebSocket origin
+    defaults are isolated to each endpoint module in a source file.
+  * Named function captures and inline HEEx retain their lexical aliases and
+    import selections, including renamed aliases. Qualified `raw` pipes in
+    templates are detected. HTML comments and script/style text cannot change
+    brace-interpolation scope or introduce findings from literal markup.
+  * `XSS.SendResp` tracks rebindings before each response, including branches,
+    pattern matches, callbacks and call arguments. An outer connection's content
+    type cannot suppress a response on a new binding; unchanged bindings and
+    explicit content-type setters retain their existing handling. These fixes can add findings for
+    previously missed sinks; existing finding locations and fingerprints remain
+    unchanged.
+  * SARIF percent-encodes reserved filename characters, including `#`, `?`, `%`
+    and `:`, so they remain part of the artifact path. JSON filenames and skip
+    fingerprints are unchanged.
+
 ## v0.15.0
   * Bug fixes
     * `Config.Secrets` no longer crashes the scan when a secret is written as

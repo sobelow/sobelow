@@ -84,6 +84,32 @@ defmodule SobelowTest.SarifTest do
   end
 
   @tag :tmp_dir
+  test "reserved filename characters remain part of a SARIF path", %{tmp_dir: tmp_dir} do
+    Application.put_env(:sobelow, :root, tmp_dir)
+
+    for filename <- ["hash#query?.ex", "percent%20.ex", "scheme:name.ex"] do
+      path = Path.join(tmp_dir, filename)
+      File.write!(path, "")
+
+      finding =
+        Sobelow.Finding.init("XSS.Raw: XSS", Sobelow.Utils.normalize_path(path), :low)
+        |> Map.merge(%{vuln_source: :raw, vuln_line_no: 1, vuln_col_no: 1})
+        |> Sobelow.Finding.fetch_fingerprint()
+
+      Sobelow.FindingLog.add({%{}, finding, nil}, :low)
+    end
+
+    for result <- Sobelow.FindingLog.sarif_results() do
+      uri = get_in(result, [:locations, Access.at(0), :physicalLocation, :artifactLocation, :uri])
+      parsed = URI.parse(uri)
+      assert parsed.scheme == nil
+      assert parsed.query == nil
+      assert parsed.fragment == nil
+      assert URI.decode(parsed.path) in ["hash#query?.ex", "percent%20.ex", "scheme:name.ex"]
+    end
+  end
+
+  @tag :tmp_dir
   test "an external source uses an absolute file URI", %{tmp_dir: tmp_dir} do
     root = Path.join(tmp_dir, "project")
     outside = Path.join(tmp_dir, "external.ex")
