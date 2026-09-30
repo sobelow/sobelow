@@ -1,6 +1,7 @@
 defmodule Sobelow.Lexical do
   @moduledoc false
   @context_key {__MODULE__, :context}
+  @local_sinks %{raw: :HTML, put_resp_header: :Conn, put_resp_content_type: :Conn}
   @modules %{
     SQL: [:Ecto, :Adapters, :SQL],
     HTML: [:Phoenix, :HTML],
@@ -65,11 +66,7 @@ defmodule Sobelow.Lexical do
         module = if is_list(target), do: target, else: Map.get(@modules, target, [target])
         arity = length(args || []) + extra
 
-        local_sink? =
-          (target == :HTML and name == :raw) or
-            (target == :Conn and name == :put_resp_header)
-
-        if local_sink? and {name, arity} in Map.get(env, :local_functions, []) do
+        if Map.get(@local_sinks, name) == target and shadowed?(env, module, {name, arity}) do
           false
         else
           (is_atom(target) and target not in [:SQL, :Repo]) or
@@ -81,6 +78,38 @@ defmodule Sobelow.Lexical do
         is_atom(target) and target not in [:SQL, :Repo]
     end
   end
+
+  defp shadowed?(env, module, signature) do
+    signature in Map.get(env, :local_functions, []) or
+      excluded_import?(env.imports, module, signature) or
+      conflicting_import?(env.imports, module, signature)
+  end
+
+  defp excluded_import?(imports, module, signature) do
+    case Map.fetch(imports, module) do
+      {:ok, {:unknown, _}} -> module == [:Plug, :Conn]
+      {:ok, selection} -> not imported?(selection, signature)
+      :error -> false
+    end
+  end
+
+  defp conflicting_import?(imports, module, signature) do
+    known_target? = imported?(Map.get(imports, module), signature)
+
+    Enum.any?(imports, fn
+      {^module, _selection} ->
+        false
+
+      {_other, {:only, functions}} ->
+        signature in functions
+
+      {_other, selection} ->
+        module == [:Plug, :Conn] and not known_target? and possible_import?(selection, signature)
+    end)
+  end
+
+  defp possible_import?({:macros, _}, _signature), do: true
+  defp possible_import?(selection, signature), do: imported?(selection, signature)
 
   defp resolution(node) do
     context = Process.get(@context_key) || %{}
@@ -146,7 +175,7 @@ defmodule Sobelow.Lexical do
           {:except, []}
 
         Keyword.get(options, :only) == :macros ->
-          {:only, []}
+          {:macros, []}
 
         Keyword.has_key?(options, :only) ->
           selection(:only, Keyword.get(options, :only))
@@ -179,7 +208,7 @@ defmodule Sobelow.Lexical do
   defp walk({:defmodule, _, [_name, [do: body]]}, env, acc) do
     # Local definitions apply throughout their module, including before their
     # declaration. Nested modules inherit imports and aliases, not local functions.
-    {_inner, acc} = walk(body, %{env | local_functions: local_functions(body)}, acc)
+    {_inner, acc} = walk(body, Map.put(env, :local_functions, local_functions(body)), acc)
     {env, acc}
   end
 
@@ -243,7 +272,7 @@ defmodule Sobelow.Lexical do
       put_call(acc, node, %{
         imports: env.imports,
         repo?: env.repo?,
-        local_functions: env.local_functions
+        local_functions: Map.get(env, :local_functions, [])
       })
 
     {_inner, acc} = walk(args, env, acc)
@@ -261,18 +290,55 @@ defmodule Sobelow.Lexical do
 
   defp walk(_, env, acc), do: {env, acc}
 
-  defp local_functions({:__block__, _, nodes}),
-    do: Enum.flat_map(nodes, &local_functions/1) |> Enum.uniq()
+  defp local_functions({:__block__, _, nodes}) do
+    signatures = Enum.flat_map(nodes, &local_functions/1) |> Enum.uniq()
 
-  defp local_functions({kind, _, [head | _]}) when kind in [:def, :defp],
-    do: local_signatures(head)
+    # A default declaration or a benign clause cannot hide an unsafe clause.
+    if Enum.any?(nodes, &unsafe_raw_definition?/1),
+      do: without_raw(signatures),
+      else: signatures
+  end
+
+  defp local_functions({kind, _, [head | _]} = definition) when kind in [:def, :defp] do
+    signatures = local_signatures(head)
+    if unsafe_raw_definition?(definition), do: without_raw(signatures), else: signatures
+  end
+
+  defp local_functions({kind, _, [head | _]})
+       when kind in [:defmacro, :defmacrop, :defdelegate] do
+    # A macro or delegate may return the connection unchanged. It cannot prove
+    # a content type, but an unresolved raw macro/delegate remains a possible sink.
+    without_raw(local_signatures(head))
+  end
 
   defp local_functions(_), do: []
+
+  defp without_raw(signatures),
+    do: Enum.reject(signatures, fn {name, _arity} -> name == :raw end)
+
+  defp unsafe_raw_definition?({kind, _, [head, [do: body]]}) when kind in [:def, :defp] do
+    Enum.any?(local_signatures(head), fn {name, _arity} -> name == :raw end) and
+      unsafe_raw_body?(body)
+  end
+
+  defp unsafe_raw_definition?(_), do: false
+
+  defp unsafe_raw_body?(body) do
+    {_, unsafe?} =
+      Macro.prewalk(body, false, fn
+        {:safe, value} = node, unsafe? -> {node, unsafe? or not Macro.quoted_literal?(value)}
+        {:raw, _, args} = node, _unsafe? when is_list(args) -> {node, true}
+        {{:., _, [_, :raw]}, _, _} = node, _unsafe? -> {node, true}
+        node, unsafe? -> {node, unsafe?}
+      end)
+
+    unsafe?
+  end
 
   defp local_signatures({:when, _, [head | _]}), do: local_signatures(head)
 
   defp local_signatures({name, _, args})
-       when name in [:raw, :put_resp_header] and is_list(args) do
+       when is_map_key(@local_sinks, name) and is_list(args) do
     arity = length(args)
     defaults = Enum.count(args, &match?({:\\, _, _}, &1))
     Enum.map((arity - defaults)..arity, &{name, &1})

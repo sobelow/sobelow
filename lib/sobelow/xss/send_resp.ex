@@ -5,9 +5,11 @@ defmodule Sobelow.XSS.SendResp do
   This submodule looks for XSS vulnerabilities in the `body`
   argument of `Conn.send_resp`.
 
-  A known non-HTML content type on the response connection suppresses the
-  finding. Both `put_resp_content_type` and `put_resp_header` with the literal
-  `"content-type"` header are recognized. Unknown content types remain findings.
+  A known data content type on the response connection suppresses the finding.
+  Both `put_resp_content_type` and `put_resp_header` with the literal
+  `"content-type"` header are recognized. HTML and SVG retain their confidence;
+  dynamic, malformed, and other scriptable document types remain low-confidence
+  findings.
 
   SendResp checks can be ignored with the following command:
 
@@ -16,6 +18,9 @@ defmodule Sobelow.XSS.SendResp do
   @uid 31
   @finding_type "XSS.SendResp: XSS in `send_resp`"
   @setters [:put_resp_content_type, :put_resp_header]
+  @media_type ~r/\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+\z/
+  @http_whitespace ~r/\A[ \t\r\n]+|[ \t\r\n]+\z/
+  @unknown_media_types ["unknown/unknown", "application/unknown", "*/*"]
 
   use Sobelow.Finding
 
@@ -55,7 +60,7 @@ defmodule Sobelow.XSS.SendResp do
     confidence =
       case response_content_type(finding) do
         :unknown -> finding.confidence
-        type when is_binary(type) -> if contains_html?(type), do: finding.confidence
+        type when is_binary(type) -> literal_confidence(type, finding.confidence)
         _ -> :low
       end
 
@@ -173,12 +178,12 @@ defmodule Sobelow.XSS.SendResp do
     names
   end
 
-  defp connection_content_type({:|>, _, [_conn, setter]}, _types) do
+  defp connection_content_type({:|>, _, [conn, setter]}, types) do
     if setter?(setter, 1) do
       # Supply the piped connection only for argument selection. Findings keep
       # the original call AST and therefore their existing locations and hashes.
       {name, meta, args} = setter
-      get_content_type({name, meta, [:connection | args]})
+      setter_content_type({name, meta, [conn | args]}, types)
     else
       # Another operation after setting the header may alter the connection.
       # Keep the finding when that operation is not understood.
@@ -190,9 +195,20 @@ defmodule Sobelow.XSS.SendResp do
     Map.get(types, name, :unknown)
   end
 
-  defp connection_content_type(setter, _types) do
-    if setter?(setter), do: get_content_type(setter), else: :unknown
+  defp connection_content_type(setter, types) do
+    if setter?(setter), do: setter_content_type(setter, types), else: :unknown
   end
+
+  defp setter_content_type({name, _, [conn, header, _value]} = setter, types)
+       when is_binary(header) do
+    header_setter? = name == :put_resp_header or match?({:., _, [_, :put_resp_header]}, name)
+
+    if header_setter? and String.downcase(header) != "content-type",
+      do: connection_content_type(conn, types),
+      else: get_content_type(setter)
+  end
+
+  defp setter_content_type(setter, _types), do: get_content_type(setter)
 
   defp setter?(setter, extra \\ 0)
 
@@ -209,10 +225,32 @@ defmodule Sobelow.XSS.SendResp do
 
   defp setter?(_, _extra), do: false
 
-  defp contains_html?(content_type) do
-    content_type
-    |> String.downcase()
-    |> String.contains?("html")
+  defp literal_confidence(content_type, confidence) do
+    original =
+      content_type
+      |> String.split(";", parts: 2)
+      |> hd()
+      |> String.replace(@http_whitespace, "")
+
+    media_type = String.downcase(original)
+
+    cond do
+      not Regex.match?(@media_type, original) ->
+        :low
+
+      media_type in @unknown_media_types ->
+        :low
+
+      String.contains?(media_type, "html") or media_type == "image/svg+xml" ->
+        confidence
+
+      String.ends_with?(media_type, "+xml") or
+          media_type in ["text/xml", "application/xml", "application/pdf"] ->
+        :low
+
+      true ->
+        nil
+    end
   end
 
   @doc false
