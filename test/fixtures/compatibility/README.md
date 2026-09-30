@@ -22,3 +22,11 @@ checked on every matrix entry; existing skip round-trip tests also run on each
 runtime. Add separately captured release fixtures to qualify fixed historical
 hashes on other parser families rather than transforming the new output into
 its own expected baseline.
+
+`v0_15_0_columns.json` stores SARIF columns captured independently from the same
+unmodified release on Elixir 1.12.3, 1.13.4, 1.14.5 (OTP 24), and 1.15.8 (OTP 26).
+Elixir 1.12 places qualified-call columns one character earlier; EEx before 1.16
+does not retain expression columns and SARIF uses its existing column-1 fallback.
+The compatibility test uses these fixed columns on the corresponding parser
+families and still compares every remaining SARIF result field. This preserves
+historical runtime behaviour without changing scan output or fingerprints.

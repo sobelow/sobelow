@@ -34,8 +34,13 @@ defmodule Sobelow.OutputBehaviorTest do
     ast = quoted("def read(path), do: File.read(path)")
     [sink] = Parse.get_funs_by_module(ast, [:File])
     output = capture_io(fn -> Print.print_code(ast, sink) end)
-    assert output =~ IO.ANSI.light_magenta() <> "File.read(path)" <> IO.ANSI.reset()
-    assert output =~ "def read(path)"
+    highlighted_sink = IO.ANSI.light_magenta() <> "File.read(path)" <> IO.ANSI.reset()
+    assert output =~ highlighted_sink
+
+    # Preserve the surrounding source using this runtime's printer; Elixir
+    # 1.12 prints the function head as `def(read(path))`.
+    assert output |> String.replace(highlighted_sink, "File.read(path)") |> String.trim() ==
+             Macro.to_string(ast)
 
     template = EEx.compile_string("<%= raw @body %>")
     output = capture_io(fn -> Print.print_code(template, :absent) end)
