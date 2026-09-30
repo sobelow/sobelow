@@ -6,6 +6,22 @@ defmodule Sobelow.CompatibilityTest do
   @captured_parser String.starts_with?(System.version(), "1.20.")
   @parser_family System.version() |> String.split(".") |> Enum.take(2) |> Enum.join(".")
 
+  test "existing facade functions and traversal callbacks remain callable" do
+    # Captured before the module extraction; additions are allowed.
+    "test/fixtures/compatibility/public_api.json"
+    |> File.read!()
+    |> Jason.decode!()
+    |> Enum.each(fn {name, functions} ->
+      module = String.to_existing_atom(name)
+      assert Code.ensure_loaded?(module)
+
+      for [name, arity] <- functions do
+        assert function_exported?(module, String.to_existing_atom(name), arity),
+               "#{inspect(module)}.#{name}/#{arity} is missing"
+      end
+    end)
+  end
+
   test "existing findings retain the 0.15.0 output and fingerprint contracts" do
     expected = @fixture |> File.read!() |> Jason.decode!()
     assert scan("basic") == expected["report"]

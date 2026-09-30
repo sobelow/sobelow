@@ -21,10 +21,19 @@ It ships two entry points that share all logic:
 ```
 lib/
   mix/tasks/sobelow.ex      CLI: option parsing, .sobelow-conf merge, dispatch
-  sobelow.ex                Pipeline: file discovery, scan orchestration, skips,
-                            version check, module-name registry
+  sobelow.ex                Public facade, reporting options, module-name registry
   sobelow/
-    parse.ex                AST helpers shared by every check (the workhorse)
+    scanner.ex              Scan phases, worker lifecycle, output and exit status
+    scan.ex                 Scan-local cache, settings, diagnostics and statistics
+    scan/discovery.ex       Source discovery, file/module metadata, router selection
+    skip_file.ex            Skip-file loading, sorting and persistence
+    version_check.ex        Optional version notification, cache and HTTP boundary
+    parse.ex                Compatible entry points for shared AST helpers
+    parse/source.ex         Source loading, skip comments and parse diagnostics
+    parse/metadata.ex       Definition/module metadata and pipeline skip association
+    parse/calls.ex          Call matching, captures, pipes and indexed traversal
+    parse/variables.ex      Tainted arguments, function parameters and locations
+    parse/template.ex       EEx/HEEx expressions and render assignments
     print.ex                Human-readable output and confidence grading
     finding.ex              %Finding{} struct, fingerprints, `use Sobelow.Finding`
     finding_log.ex          Findings collector; json/1 and sarif/1 renderers
@@ -39,6 +48,12 @@ test/
   fixtures/<check>/         Single-file fixtures for unit tests
   e2e/                      End-to-end tests
 ```
+
+Checks continue to call `Sobelow.Parse`; its delegates preserve the existing
+helper names, default arities and `Macro.prewalk` callbacks. Put new parsing
+logic in the relevant internal module, and expose it through the facade when
+checks need it. Keep original AST nodes and metadata intact during refactors,
+since findings and skip fingerprints depend on them.
 
 ## Build and check
 
