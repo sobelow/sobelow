@@ -1,5 +1,7 @@
 defmodule Sobelow.VersionCheck do
   @moduledoc false
+  @home "~/.sobelow"
+  @vsncheck "sobelow-vsn-check"
 
   # Keep auxiliary I/O separate from scan orchestration. The fetch boundary can
   # be exercised without contacting the version service or weakening TLS.
@@ -17,7 +19,7 @@ defmodule Sobelow.VersionCheck do
   defp refresh(cache, installed, fetch_version) do
     time = DateTime.utc_now() |> DateTime.to_unix()
 
-    case Sobelow.last_version_check(cache) do
+    case last_version_check(cache) do
       {:ok, timestamp} when time - 12 * 60 * 60 <= timestamp -> nil
       _ -> update(time, cache, installed, fetch_version)
     end
@@ -65,7 +67,7 @@ defmodule Sobelow.VersionCheck do
 
         case request.(:get, {~c"https://sobelow.io/version", []}, http_options, []) do
           {:ok, {{_, 200, _}, _, body}} ->
-            case Sobelow.parse_remote_version(body) do
+            case parse_remote_version(body) do
               {:ok, version} -> version
               :error -> Version.parse!(installed)
             end
@@ -91,4 +93,43 @@ defmodule Sobelow.VersionCheck do
       :error
     end
   end
+
+  @doc false
+  # `SOBELOW_HOME` overrides the *directory* the version-check timestamp is cached in.
+  def version_check_file do
+    (System.get_env("SOBELOW_HOME") || @home)
+    |> Path.expand()
+    |> Path.join(@vsncheck)
+  end
+
+  @doc false
+  # A missing, unreadable, or corrupt cache file just means "we don't know when we
+  # last checked". It must never abort the scan.
+  def last_version_check(config) do
+    case :file.open(config, [:read]) do
+      {:ok, iofile} ->
+        line = :file.read_line(iofile)
+        :file.close(iofile)
+        parse_version_check(line)
+
+      {:error, _} ->
+        :error
+    end
+  end
+
+  defp parse_version_check({:ok, ~c"sobelow-" ++ timestamp}) do
+    case Integer.parse(to_string(timestamp)) do
+      {timestamp, _} -> {:ok, timestamp}
+      :error -> :error
+    end
+  end
+
+  defp parse_version_check(_), do: :error
+
+  @doc false
+  def parse_remote_version(body) when is_binary(body) or is_list(body) do
+    body |> to_string() |> String.trim() |> Version.parse()
+  end
+
+  def parse_remote_version(_), do: :error
 end

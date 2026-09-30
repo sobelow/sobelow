@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+  * Code organization: scan discovery, execution and skip-file persistence now
+    have focused internal modules. Shared AST helpers are split into source,
+    metadata, calls, variables and templates, with existing `Sobelow` and
+    `Sobelow.Parse` entry points preserved. Duplicate matchers and worker setup
+    are consolidated; findings, locations, fingerprints and output are unchanged.
+
   * Scan reliability: missing or invalid project roots, and roots with no
     scannable source files, now fail instead of exiting successfully; invalid
     scan options and unwritable output files also fail.

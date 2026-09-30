@@ -1,4 +1,4 @@
-These fixtures were captured from the unmodified release tree at `4eb7d16`
+The release fixtures were captured from the unmodified release tree at `4eb7d16`
 (version 0.15.0), scanning `test/fixtures/apps/basic` with Elixir 1.20.4 / OTP 29.
 
 `v0_15_0.json` stores JSON findings, fingerprint components exposed in the
@@ -30,3 +30,10 @@ does not retain expression columns and SARIF uses its existing column-1 fallback
 The compatibility test uses these fixed columns on the corresponding parser
 families and still compares every remaining SARIF result field. This preserves
 historical runtime behaviour without changing scan output or fingerprints.
+
+`public_api.json` records every public function and arity on `Sobelow` and
+`Sobelow.Parse` at `97019bc`, before extracting the internal scan and parsing
+modules. It includes traversal callbacks and generated default arities.
+The compatibility test requires these entry points to remain callable; adding
+functions is allowed. Existing behavioral tests exercise them through the
+facades, and the benchmark compares complete findings and output separately.
