@@ -38,9 +38,12 @@ defmodule Sobelow.Parse do
   ]
 
   def ast(filepath) do
-    filepath
-    |> read_file()
-    |> parse(filepath)
+    Sobelow.Scan.fetch({:ast, Path.expand(filepath), Sobelow.get_env(:skip)}, fn ->
+      case read_file(filepath) do
+        {:ok, content} -> parse(content, filepath)
+        {:error, reason} -> unreadable_source(filepath, reason)
+      end
+    end)
   end
 
   @doc false
@@ -53,14 +56,34 @@ defmodule Sobelow.Parse do
   # times for a router, which is where pipeline skips live, so warning from
   # there would repeat itself.
   def ast_with_skip_warnings(filepath) do
-    content = read_file(filepath)
-    warn_unrecognised_skips(filepath, content)
-    parse(content, filepath)
+    case read_file(filepath) do
+      {:ok, content} ->
+        Sobelow.Scan.fetch({:skip_warnings, Path.expand(filepath)}, fn ->
+          warn_unrecognised_skips(filepath, content)
+        end)
+
+        ast(filepath)
+
+      {:error, reason} ->
+        unreadable_source(filepath, reason)
+    end
+  end
+
+  defp unreadable_source(filepath, reason) do
+    Sobelow.Scan.record(
+      filepath,
+      :unreadable,
+      "Could not read #{filepath}: #{:file.format_error(reason)}"
+    )
+
+    IO.puts(:stderr, "Could not read #{filepath}: #{:file.format_error(reason)}; skipping it.")
+    {}
   end
 
   defp parse(content, filepath) do
     case Code.string_to_quoted(content, columns: true, file: filepath) do
       {:ok, ast} ->
+        Sobelow.Scan.record(filepath, :scanned)
         ast
 
       {:error, {location, err, token}} ->
@@ -69,6 +92,9 @@ defmodule Sobelow.Parse do
   end
 
   defp syntax_error(filepath, location, err, token) do
+    message = "#{filepath}:#{format_location(location)} #{format_error(err, token)}"
+    Sobelow.Scan.record(filepath, :unparseable, message)
+
     if Application.get_env(:sobelow, :strict) do
       message = "#{filepath}:#{format_location(location)} #{format_error(err, token)}"
       IO.puts(:stderr, message)
@@ -112,12 +138,16 @@ defmodule Sobelow.Parse do
   @skip_comment_attempt ~r/#\s*sobelow_skip\s*\[/
 
   defp read_file(filepath) do
-    content = File.read!(filepath)
+    case Sobelow.Scan.source(filepath) do
+      {:ok, content} ->
+        if Sobelow.get_env(:skip) do
+          {:ok, String.replace(content, @skip_comment, "@sobelow_skip \\g{1}")}
+        else
+          {:ok, content}
+        end
 
-    if Sobelow.get_env(:skip) do
-      String.replace(content, @skip_comment, "@sobelow_skip \\g{1}")
-    else
-      content
+      {:error, reason} ->
+        {:error, reason}
     end
   end
 
@@ -169,6 +199,140 @@ defmodule Sobelow.Parse do
       acc
     end
   end
+
+  @doc false
+  # `use` and `import` belong to a module, not a whole source file. Keep
+  # definitions beside the declarations that can affect their meaning.
+  def get_module_meta_funs(ast) do
+    {_, modules} =
+      Macro.prewalk(ast, [], fn
+        {:defmodule, _, [_, [do: body]]} = node, acc -> {node, [body | acc]}
+        node, acc -> {node, acc}
+      end)
+
+    case modules do
+      [] ->
+        [get_meta_funs(ast)]
+
+      bodies ->
+        bodies
+        |> Enum.reverse()
+        |> Enum.map(fn body ->
+          body
+          |> Macro.prewalk(fn
+            {:defmodule, _, _} -> {}
+            node -> node
+          end)
+          |> get_meta_funs()
+        end)
+    end
+  end
+
+  @doc false
+  def file_metadata(ast) do
+    empty = %{def_funs: [], use_funs: [], import_funs: [], module_attrs: []}
+
+    initial = %{
+      file: empty,
+      modules: %{},
+      current: nil,
+      parents: [],
+      count: 0,
+      captured_depth: 0,
+      fallback?: false
+    }
+
+    {_, metadata} = Macro.traverse(ast, initial, &metadata_pre/2, &metadata_post/2)
+
+    consumed =
+      if Enum.any?(metadata.file.def_funs, &skip_attr?/1),
+        do: pipeline_skip_attrs(ast),
+        else: MapSet.new()
+
+    clean = fn meta ->
+      Map.update!(meta, :def_funs, &Enum.reject(&1, fn fun -> MapSet.member?(consumed, fun) end))
+    end
+
+    file = clean.(metadata.file)
+
+    contexts =
+      cond do
+        metadata.fallback? -> get_module_meta_funs(ast)
+        metadata.count == 0 -> [file]
+        true -> Enum.map(0..(metadata.count - 1), &clean.(Map.fetch!(metadata.modules, &1)))
+      end
+
+    {file, contexts}
+  end
+
+  defp metadata_pre(node, metadata) do
+    {_, file} = get_meta_funs(node, metadata.file)
+    metadata = %{metadata | file: file}
+
+    metadata =
+      if captured_metadata?(node),
+        do: %{metadata | captured_depth: metadata.captured_depth + 1},
+        else: metadata
+
+    case node do
+      {:defmodule, _, [name, [do: _body]]} ->
+        empty = %{def_funs: [], use_funs: [], import_funs: [], module_attrs: []}
+        %{count: id, current: parent} = metadata
+
+        metadata = %{
+          metadata
+          | modules: Map.put(metadata.modules, id, empty),
+            current: id,
+            count: id + 1,
+            parents: [parent | metadata.parents],
+            fallback?:
+              metadata.fallback? or metadata.captured_depth > 0 or
+                not literal_module_name?(name)
+        }
+
+        {node, metadata}
+
+      {:defmodule, _, _} ->
+        {node, %{metadata | fallback?: true}}
+
+      _ ->
+        modules =
+          if metadata.current != nil do
+            Map.update!(metadata.modules, metadata.current, fn meta ->
+              elem(get_meta_funs(node, meta), 1)
+            end)
+          else
+            metadata.modules
+          end
+
+        {node, %{metadata | modules: modules}}
+    end
+  end
+
+  defp metadata_post({:defmodule, _, [_, [do: _]]} = node, metadata) do
+    [parent | rest] = metadata.parents
+    {node, %{metadata | current: parent, parents: rest}}
+  end
+
+  defp metadata_post(node, metadata) do
+    metadata =
+      if captured_metadata?(node),
+        do: %{metadata | captured_depth: metadata.captured_depth - 1},
+        else: metadata
+
+    {node, metadata}
+  end
+
+  # The old extraction strips nested modules out of captured definitions and
+  # attributes. Those unusual containers need its rewritten AST, rather than
+  # the original node retained by the combined traversal.
+  defp captured_metadata?({name, _, _}) when name in [:def, :defp, :defmacro, :use, :import, :@],
+    do: true
+
+  defp captured_metadata?(_node), do: false
+
+  defp literal_module_name?({:__aliases__, _, parts}), do: Enum.all?(parts, &is_atom/1)
+  defp literal_module_name?(name), do: is_atom(name)
 
   defp skip_attr?({:@, _, [{:sobelow_skip, _, _}]}), do: true
   defp skip_attr?(_), do: false
@@ -275,7 +439,7 @@ defmodule Sobelow.Parse do
   def get_meta_funs(ast, acc), do: {ast, acc}
 
   def get_meta_template_funs(filepath) do
-    case template_ast(filepath) do
+    case Sobelow.Scan.fetch({:template, Path.expand(filepath)}, fn -> template_ast(filepath) end) do
       {:ok, ast} -> get_meta_template_fun(ast)
       :error -> %{raw: [], ast: {}}
     end
@@ -284,15 +448,117 @@ defmodule Sobelow.Parse do
   # A template we cannot parse should be skipped like an unparseable `.ex` file,
   # not abort the whole scan.
   defp template_ast(filepath) do
-    {:ok, EEx.compile_string(File.read!(filepath), file: filepath)}
+    case Sobelow.Scan.source(filepath) do
+      {:ok, source} ->
+        ast =
+          if Path.extname(filepath) == ".heex" do
+            source |> Sobelow.HEEx.ast(filepath) |> heex_assigns()
+          else
+            EEx.compile_string(source, file: filepath)
+          end
+
+        Sobelow.Scan.record(filepath, :scanned)
+        {:ok, ast}
+
+      {:error, reason} ->
+        message = "Could not read #{filepath}: #{:file.format_error(reason)}"
+        Sobelow.Scan.record(filepath, :unreadable, message)
+        IO.puts(:stderr, message <> "; skipping it.")
+        :error
+    end
   rescue
     e in EEx.SyntaxError ->
+      Sobelow.Scan.record(filepath, :unparseable, Exception.message(e))
+
       if Application.get_env(:sobelow, :strict) do
         IO.puts(:stderr, Exception.message(e))
         System.halt(2)
       else
         :error
       end
+  end
+
+  @doc false
+  def get_heex_raw_funs(ast, file \\ "inline HEEx") do
+    {_, raw} =
+      Macro.prewalk(ast, [], fn
+        {:sigil_H, meta, [{:<<>>, literal_meta, [source]}, _]} = node, acc
+        when is_binary(source) ->
+          line_offset =
+            if Keyword.get(meta, :delimiter) in ["\"\"\"", "'''"] do
+              Keyword.get(meta, :line, 0)
+            else
+              Keyword.get(meta, :line, 1) - 1
+            end
+
+          found =
+            source
+            |> inline_heex_ast(file, line_offset + 1)
+            |> shift_inline_columns(meta, literal_meta, line_offset + 1)
+            |> heex_assigns()
+            |> get_meta_template_fun()
+            |> Map.fetch!(:raw)
+
+          {node, found ++ acc}
+
+        node, acc ->
+          {node, acc}
+      end)
+
+    raw
+  end
+
+  defp inline_heex_ast(source, file, line) do
+    Sobelow.HEEx.ast(source, file, line)
+  rescue
+    e in EEx.SyntaxError ->
+      Sobelow.Scan.record(file, :unparseable, Exception.message(e))
+
+      if Sobelow.get_env(:strict) do
+        IO.puts(:stderr, Exception.message(e))
+        System.halt(2)
+      end
+
+      {}
+  end
+
+  defp shift_inline_columns(ast, sigil, literal, first_line) do
+    heredoc? = Keyword.get(sigil, :delimiter) in ["\"\"\"", "'''"]
+    indentation = Keyword.get(literal, :indentation, 0)
+
+    prefix =
+      if is_integer(sigil[:column]),
+        do: sigil[:column] + 1 + String.length(Keyword.get(sigil, :delimiter, "\"")),
+        else: 0
+
+    Macro.prewalk(ast, fn
+      {name, meta, args} = node when is_list(meta) ->
+        offset =
+          if heredoc?,
+            do: indentation,
+            else: if(Keyword.get(meta, :line) == first_line, do: prefix, else: 0)
+
+        if is_integer(meta[:column]),
+          do: {name, Keyword.update!(meta, :column, &(&1 + offset)), args},
+          else: node
+
+      node ->
+        node
+    end)
+  end
+
+  # The EEx engine represents `@name` as an access on `assigns`. Reuse that
+  # representation so existing taint extraction and template correlation see
+  # the same variable for both EEx and HEEx expressions.
+  defp heex_assigns(ast) do
+    Macro.prewalk(ast, fn
+      {:@, meta, [{name, _, nil}]} when is_atom(name) ->
+        {{:., meta, [{:__aliases__, meta, [:EEx, :Engine]}, :fetch_assign!]}, meta,
+         [{:var!, meta, [{:assigns, meta, EEx.Engine}]}, name]}
+
+      node ->
+        node
+    end)
   end
 
   def get_meta_template_fun(ast) do
@@ -308,6 +574,12 @@ defmodule Sobelow.Parse do
 
   def get_meta_template_fun({:raw, _, _} = ast, acc) do
     {ast, Map.update!(acc, :raw, &[ast | &1])}
+  end
+
+  def get_meta_template_fun({{:., _, [{:__aliases__, _, modules}, :raw]}, _, _} = ast, acc) do
+    if List.last(modules) == :HTML,
+      do: {ast, Map.update!(acc, :raw, &[ast | &1])},
+      else: {ast, acc}
   end
 
   def get_meta_template_fun(ast, acc), do: {ast, acc}
@@ -338,45 +610,66 @@ defmodule Sobelow.Parse do
     {vars ++ pipevars, params, {fun_name, line_no}}
   end
 
-  defp get_funs(fun, type, nil) do
-    get_funs_of_type(fun, type)
-  end
-
-  defp get_funs(fun, type, module) when is_list(module) do
-    get_aliased_funs_of_type(fun, type, module)
-  end
-
-  defp get_funs(fun, type, {:required, module}) do
-    get_aliased_funs_of_type(fun, type, module)
-  end
-
   defp get_funs(fun, type, module) do
-    get_funs(fun, type, {:required, module}) ++ get_funs_of_type(fun, type)
+    if Sobelow.Lexical.active?() and module != nil do
+      target =
+        case module do
+          {:required, target} -> target
+          target -> target
+        end
+
+      get_aliased_funs_of_type(fun, type, target) ++
+        Enum.filter(get_funs_of_type(fun, type), &Sobelow.Lexical.unqualified?(&1, target))
+    else
+      legacy_funs(fun, type, module)
+    end
   end
 
-  defp get_funs_from_pipe(fun, type, nil) do
-    get_pipe_funs(fun)
-    |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
-    |> Enum.flat_map(&get_piped_funs_of_type(&1, type))
-    |> Enum.uniq()
-  end
+  defp legacy_funs(fun, type, nil), do: get_funs_of_type(fun, type)
 
-  defp get_funs_from_pipe(fun, type, module) when is_list(module) do
-    get_pipe_funs(fun)
-    |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
-    |> Enum.flat_map(&get_piped_aliased_funs_of_type(&1, type, module))
-    |> Enum.uniq()
-  end
+  defp legacy_funs(fun, type, module) when is_list(module),
+    do: get_aliased_funs_of_type(fun, type, module)
 
-  defp get_funs_from_pipe(fun, type, {:required, module}) do
-    get_pipe_funs(fun)
-    |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
-    |> Enum.flat_map(&get_piped_aliased_funs_of_type(&1, type, module))
-    |> Enum.uniq()
-  end
+  defp legacy_funs(fun, type, {:required, module}),
+    do: get_aliased_funs_of_type(fun, type, module)
+
+  defp legacy_funs(fun, type, module),
+    do: get_aliased_funs_of_type(fun, type, module) ++ get_funs_of_type(fun, type)
 
   defp get_funs_from_pipe(fun, type, module) do
-    get_funs_from_pipe(fun, type, {:required, module}) ++ get_funs_from_pipe(fun, type, nil)
+    fun
+    |> get_pipe_funs()
+    |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
+    |> Enum.flat_map(fn node ->
+      case module do
+        nil ->
+          get_piped_funs_of_type(node, type)
+
+        {:required, target} ->
+          qualified_pipe(node, type, target)
+
+        target when is_list(target) ->
+          qualified_pipe(node, type, target)
+
+        target ->
+          if Sobelow.Lexical.active?(),
+            do: qualified_pipe(node, type, target),
+            else: qualified_pipe(node, type, target) ++ unqualified_pipe(node, type, target)
+      end
+    end)
+    |> Enum.uniq()
+  end
+
+  defp qualified_pipe(node, type, target) do
+    get_piped_aliased_funs_of_type(node, type, target) ++
+      if(Sobelow.Lexical.active?(), do: unqualified_pipe(node, type, target), else: [])
+  end
+
+  defp unqualified_pipe(node, type, target) do
+    get_piped_funs_of_type(node, type)
+    |> Enum.filter(fn node ->
+      not Sobelow.Lexical.active?() or Sobelow.Lexical.unqualified?(node, target, 1)
+    end)
   end
 
   def get_erlang_funs_from_pipe(fun, type, module) do
@@ -431,8 +724,7 @@ defmodule Sobelow.Parse do
   defp atom_to_string(atom) when is_atom(atom), do: Atom.to_string(atom)
 
   def get_erlang_funs_of_type(ast, type) do
-    {_, acc} = Macro.prewalk(ast, [], &get_erlang_funs_of_type(&1, &2, type, :erlang))
-    acc
+    indexed_funs(ast, :qualified, type, &get_erlang_funs_of_type(&1, &2, type, :erlang))
   end
 
   def get_erlang_funs_of_type({{:., _, [module, type]}, _, _} = ast, acc, type, module) do
@@ -447,8 +739,7 @@ defmodule Sobelow.Parse do
   def get_erlang_funs_of_type(ast, acc, _type, _module), do: {ast, acc}
 
   def get_erlang_aliased_funs_of_type(ast, type, module) do
-    {_, acc} = Macro.prewalk(ast, [], &get_erlang_funs_of_type(&1, &2, type, module))
-    acc
+    indexed_funs(ast, :qualified, type, &get_erlang_funs_of_type(&1, &2, type, module))
   end
 
   def get_piped_erlang_aliased_funs_of_type(ast, type, module) do
@@ -499,13 +790,11 @@ defmodule Sobelow.Parse do
   ## Will consider flagging strict/standard separately depending on how this
   ## works in practice.
   def get_aliased_funs_of_type(ast, type, module) when is_list(module) do
-    {_, acc} = Macro.prewalk(ast, [], &get_strict_aliased_funs_of_type(&1, &2, type, module))
-    acc
+    indexed_funs(ast, :qualified, type, &get_strict_aliased_funs_of_type(&1, &2, type, module))
   end
 
   def get_aliased_funs_of_type(ast, type, module) do
-    {_, acc} = Macro.prewalk(ast, [], &get_aliased_funs_of_type(&1, &2, type, module))
-    acc
+    indexed_funs(ast, :qualified, type, &get_aliased_funs_of_type(&1, &2, type, module))
   end
 
   def get_strict_aliased_funs_of_type(
@@ -514,7 +803,7 @@ defmodule Sobelow.Parse do
         type,
         module
       ) do
-    if aliases === module do
+    if alias_matches?(ast, aliases, module) do
       {ast, [ast | acc]}
     else
       {ast, acc}
@@ -541,7 +830,7 @@ defmodule Sobelow.Parse do
         type,
         module
       ) do
-    if List.last(aliases) === module do
+    if alias_matches?(ast, aliases, module) do
       {ast, [ast | acc]}
     else
       {ast, acc}
@@ -557,10 +846,25 @@ defmodule Sobelow.Parse do
     {ast, acc}
   end
 
+  defp alias_matches?(ast, aliases, target) do
+    if Sobelow.Lexical.active?() do
+      case Sobelow.Lexical.matches?(ast, target) do
+        nil -> legacy_alias_match?(aliases, target)
+        matched? -> matched?
+      end
+    else
+      legacy_alias_match?(aliases, target)
+    end
+  end
+
+  defp legacy_alias_match?(aliases, target) do
+    if is_list(target), do: aliases == target, else: List.last(aliases) == target
+  end
+
   def get_piped_aliased_funs_of_type(ast, type, module) when is_list(module) do
     case ast do
-      {{:., _, [{:__aliases__, _, ^module}, ^type]}, _, _} ->
-        [ast]
+      {{:., _, [{:__aliases__, _, aliases}, ^type]}, _, _} ->
+        if alias_matches?(ast, aliases, module), do: [ast], else: []
 
       _ ->
         []
@@ -570,7 +874,7 @@ defmodule Sobelow.Parse do
   def get_piped_aliased_funs_of_type(ast, type, module) do
     case ast do
       {{:., _, [{:__aliases__, _, aliases}, ^type]}, _, _} ->
-        if List.last(aliases) === module do
+        if alias_matches?(ast, aliases, module) do
           [ast]
         else
           []
@@ -600,8 +904,18 @@ defmodule Sobelow.Parse do
   end
 
   def get_funs_of_type(ast, type) do
-    {_, acc} = Macro.prewalk(ast, [], &get_funs_of_type(&1, &2, type))
-    acc
+    indexed_funs(ast, :bare, type, &get_funs_of_type(&1, &2, type))
+  end
+
+  defp indexed_funs(ast, kind, type, matcher) do
+    case Sobelow.FunctionAnalysis.candidates(ast, kind, type) do
+      {:ok, nodes} ->
+        Enum.filter(nodes, fn node -> elem(matcher.(node, []), 1) != [] end)
+
+      :error ->
+        {_, acc} = Macro.prewalk(ast, [], matcher)
+        acc
+    end
   end
 
   # This should not effect piped, aliased, etc get_funs* functions.
@@ -644,21 +958,24 @@ defmodule Sobelow.Parse do
     end
   end
 
-  defp create_fun_cap(fun, meta, idx) when is_number(idx) and idx > 0 do
+  @doc false
+  def create_fun_cap(fun, meta, idx) when is_number(idx) and idx > 0 do
     opts = Enum.map(1..trunc(idx), fn i -> {:&, [], [i]} end)
     {fun, meta, opts}
   end
 
-  defp create_fun_cap(fun, meta, _) do
+  def create_fun_cap(fun, meta, _) do
     {fun, meta, [{:&, [], []}]}
   end
 
   def get_pipe_funs(ast) do
-    all_pipes = get_funs_of_type(ast, :|>)
-
-    Enum.filter(all_pipes, fn pipe ->
-      {_, acc} = Macro.prewalk(pipe, [], &get_do_block/2)
-      Enum.empty?(acc)
+    Sobelow.FunctionAnalysis.fetch(ast, :pipes, fn ->
+      ast
+      |> get_funs_of_type(:|>)
+      |> Enum.filter(fn pipe ->
+        {_, acc} = Macro.prewalk(pipe, [], &get_do_block/2)
+        Enum.empty?(acc)
+      end)
     end)
   end
 
@@ -745,7 +1062,11 @@ defmodule Sobelow.Parse do
   defp parse_opts(opts) when is_list(opts), do: Enum.map(opts, &parse_opts/1)
   defp parse_opts(_), do: []
 
-  def get_fun_declaration({_, _, fun_opts}) do
+  def get_fun_declaration(ast) do
+    Sobelow.FunctionAnalysis.fetch(ast, :declaration, fn -> do_get_fun_declaration(ast) end)
+  end
+
+  defp do_get_fun_declaration({_, _, fun_opts}) do
     [definition | _] = fun_opts
 
     declaration =
@@ -760,7 +1081,7 @@ defmodule Sobelow.Parse do
     {params, {fun_name, get_fun_line(declaration)}}
   end
 
-  def get_fun_declaration(_) do
+  defp do_get_fun_declaration(_) do
     {[], {"", ""}}
   end
 
@@ -777,8 +1098,10 @@ defmodule Sobelow.Parse do
   defp get_params(_), do: []
 
   def get_pipe_val(ast, pipe_fun) do
-    {_, acc} = Macro.prewalk(ast, [], &get_pipe_val(&1, &2, pipe_fun))
-    acc
+    Sobelow.FunctionAnalysis.fetch(ast, {:pipe_value, pipe_fun}, fn ->
+      {_, acc} = Macro.prewalk(ast, [], &get_pipe_val(&1, &2, pipe_fun))
+      acc
+    end)
   end
 
   def get_pipe_val({:|>, _, [{:|>, _, opts}, pipefun]}, acc, pipefun) do

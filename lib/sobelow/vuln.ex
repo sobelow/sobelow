@@ -33,11 +33,46 @@ defmodule Sobelow.Vuln do
   use Sobelow.FindingType
 
   def get_vulns(root) do
-    allowed = @submodules -- Sobelow.get_ignored()
+    allowed = Sobelow.allowed_checks(__MODULE__, @submodules)
 
     Enum.each(allowed, fn mod ->
       apply(mod, :run, [root])
     end)
+  end
+
+  @doc false
+  # Read only literal version metadata. Projects often have a committed lockfile
+  # but no `deps/` tree (for example in source archives or CI before deps.get).
+  # Parsing the lockfile as AST avoids executing code from the scanned project.
+  def dependency_version(root, package) do
+    Sobelow.Scan.fetch({:dependency_version, Path.expand(root), package}, fn ->
+      read_dependency_version(root, package)
+    end)
+  end
+
+  defp read_dependency_version(root, package) do
+    mixfile = Path.join([root, "deps", package, "mix.exs"])
+
+    case if(File.regular?(mixfile), do: Sobelow.Config.get_version(mixfile)) do
+      version when is_binary(version) -> {mixfile, version}
+      _ -> locked_version(root, package)
+    end
+  end
+
+  defp locked_version(root, package) do
+    lockfile = Path.join(root, "mix.lock")
+
+    with {:ok, {:%{}, _, entries}} <-
+           Sobelow.Scan.fetch({:lockfile, Path.expand(lockfile)}, fn ->
+             with {:ok, source} <- Sobelow.Scan.source(lockfile),
+                  do: Code.string_to_quoted(source)
+           end),
+         {^package, {:{}, _, [:hex, _, version | _]}} <- List.keyfind(entries, package, 0),
+         true <- is_binary(version) do
+      {lockfile, version}
+    else
+      _ -> nil
+    end
   end
 
   def print_finding(file, vsn, package, detail, cve \\ "TBA", mod) do

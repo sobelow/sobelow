@@ -32,6 +32,18 @@ defmodule SobelowTest.SarifTest do
              Sobelow.finding_modules() |> length()
   end
 
+  test "all findings are registered for skips and listed in CLI help" do
+    {:docs_v1, _, _, _, %{"en" => help}, _, _} = Code.fetch_docs(Mix.Tasks.Sobelow)
+
+    for module <- Sobelow.finding_modules() do
+      name = module |> Module.split() |> Enum.drop(1) |> Enum.join(".")
+
+      assert Sobelow.get_mod(name) == module
+      assert Sobelow.get_mod(module.rule().name) == module
+      assert help =~ "* #{name}\n"
+    end
+  end
+
   test "All required fields available" do
     func = """
     def call(conn, _opts) do
@@ -52,7 +64,7 @@ defmodule SobelowTest.SarifTest do
     results = run["results"]
 
     assert output["$schema"] ==
-             "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json"
+             "https://docs.oasis-open.org/sarif/sarif/v2.1.0/errata01/os/schemas/sarif-schema-2.1.0.json"
 
     assert output["version"] == "2.1.0"
     assert is_list(output["runs"])
@@ -73,5 +85,29 @@ defmodule SobelowTest.SarifTest do
            end)
 
     assert Enum.all?(results, &is_binary(&1["partialFingerprints"]["primaryLocationLineHash"]))
+  end
+
+  @tag :tmp_dir
+  test "an external source uses an absolute file URI", %{tmp_dir: tmp_dir} do
+    root = Path.join(tmp_dir, "project")
+    outside = Path.join(tmp_dir, "external.ex")
+    File.mkdir_p!(root)
+    File.write!(outside, "")
+
+    previous_root = Application.get_env(:sobelow, :root)
+    Application.put_env(:sobelow, :root, root)
+    on_exit(fn -> Application.put_env(:sobelow, :root, previous_root) end)
+
+    finding =
+      Sobelow.Finding.init("XSS.Raw: XSS", Sobelow.Utils.normalize_path(outside), :low)
+      |> Map.merge(%{vuln_source: :raw, vuln_line_no: 1, vuln_col_no: 1})
+      |> Sobelow.Finding.fetch_fingerprint()
+
+    Sobelow.FindingLog.add({%{}, finding, nil}, :low)
+
+    assert [result] = Sobelow.FindingLog.sarif_results()
+
+    assert get_in(result, [:locations, Access.at(0), :physicalLocation, :artifactLocation, :uri]) ==
+             "file://" <> URI.encode(outside)
   end
 end

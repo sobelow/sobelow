@@ -50,10 +50,32 @@ defmodule Sobelow.Config do
   @skip_files ["dev.exs", "test.exs", "dev.secret.exs", "test.secret.exs"]
 
   def fetch(root, router, endpoints) do
-    allowed = @submodules -- Sobelow.get_ignored()
-    ignored_files = Sobelow.get_env(:ignored_files)
+    allowed = Sobelow.allowed_checks(__MODULE__, @submodules)
+    ignored_files = Sobelow.get_env(:ignored_files) || []
 
     dir_path = root <> "config/"
+
+    configs =
+      case File.ls(dir_path) do
+        {:ok, files} ->
+          files
+          |> Enum.filter(&(Path.extname(&1) == ".exs"))
+          |> Enum.map(&(dir_path <> &1))
+          |> Sobelow.Scan.discover(&(not want_to_scan?(&1, ignored_files)))
+          |> Enum.filter(&want_to_scan?(&1, ignored_files))
+          |> Enum.map(&Path.basename/1)
+
+        {:error, :enoent} ->
+          []
+
+        {:error, reason} ->
+          IO.puts(
+            :stderr,
+            "Could not read #{dir_path}: #{:file.format_error(reason)}; skipping config files."
+          )
+
+          []
+      end
 
     Enum.each(allowed, fn mod ->
       cond do
@@ -68,10 +90,6 @@ defmodule Sobelow.Config do
           end)
 
         File.dir?(dir_path) ->
-          configs =
-            File.ls!(dir_path)
-            |> Enum.filter(&want_to_scan?(dir_path <> &1, ignored_files))
-
           apply(mod, :run, [dir_path, configs])
 
         true ->
@@ -179,6 +197,187 @@ defmodule Sobelow.Config do
     ast = Parse.ast(filepath)
     {_, acc} = Macro.prewalk(ast, [], &extract_configs(&1, &2, key))
     acc
+  end
+
+  @doc false
+  def effective_app_configs(filepath) do
+    ast = Parse.ast(filepath)
+
+    ast |> effective_configs(%{}, false) |> Map.values()
+  end
+
+  @doc false
+  def effective_endpoint_config(key, filepath, endpoint_module) do
+    if File.regular?(filepath) do
+      filepath
+      |> Parse.ast()
+      |> effective_configs(%{}, false)
+      |> Enum.find_value(:error, fn
+        {{_app, ^endpoint_module}, options} -> Keyword.fetch(options, key)
+        _ -> nil
+      end)
+    else
+      :error
+    end
+  end
+
+  defp effective_configs({:config, _, opts}, groups, conditional?) when is_list(opts) do
+    case app_config(opts) do
+      {app, module, options} ->
+        if scanned_app?(app) do
+          options =
+            if conditional?,
+              do: Enum.map(options, fn {key, _} -> {key, {:__sobelow_unknown__, [], []}} end),
+              else: options
+
+          Map.update(groups, {app, module}, options, &merge_options(&1, options))
+        else
+          groups
+        end
+
+      nil ->
+        groups
+    end
+  end
+
+  defp effective_configs({kind, _, args}, groups, conditional?) when is_list(args) do
+    conditional? =
+      conditional? or kind in [:if, :unless, :case, :cond, :for, :with, :try, :fn, :def, :defp]
+
+    effective_configs(args, groups, conditional?)
+  end
+
+  defp effective_configs(nodes, groups, conditional?) when is_list(nodes),
+    do: Enum.reduce(nodes, groups, &effective_configs(&1, &2, conditional?))
+
+  defp effective_configs({_key, value}, groups, conditional?),
+    do: effective_configs(value, groups, conditional?)
+
+  defp effective_configs(_, groups, _conditional?), do: groups
+
+  defp app_config([app, options]) when is_atom(app) and is_list(options) do
+    if Keyword.keyword?(options), do: {app, nil, options}
+  end
+
+  defp app_config([app, {:__aliases__, _, module}, options])
+       when is_atom(app) and is_list(options) do
+    if List.last(module) == :Endpoint and Keyword.keyword?(options), do: {app, module, options}
+  end
+
+  defp app_config(_), do: nil
+
+  defp merge_options(previous, current) do
+    Keyword.merge(previous, current, fn _key, old, new ->
+      if is_list(old) and is_list(new) and Keyword.keyword?(old) and Keyword.keyword?(new),
+        do: merge_options(old, new),
+        else: new
+    end)
+  end
+
+  @doc false
+  def setting_status(value) when value in [false, nil], do: :disabled
+  def setting_status(true), do: :enabled
+
+  def setting_status(value) when is_list(value) do
+    if Keyword.keyword?(value), do: :enabled, else: :unknown
+  end
+
+  def setting_status(_), do: :unknown
+
+  @doc false
+  def hsts_status(value) do
+    case setting_status(value) do
+      :enabled when is_list(value) ->
+        case Keyword.get(value, :hsts, true) do
+          false -> :disabled
+          true -> :enabled
+          _ -> :unknown
+        end
+
+      status ->
+        status
+    end
+  end
+
+  @doc false
+  # `https` and `force_ssl` apply to the application being scanned. A setting
+  # for another OTP app or an unrelated named module must not satisfy them.
+  # Keep the historical two-argument `config :app, key: value` form too.
+  def get_app_configs(key, filepath) do
+    ast = Parse.ast(filepath)
+    {_, acc} = Macro.prewalk(ast, [], &extract_app_configs(&1, &2, key))
+    acc
+  end
+
+  @doc false
+  def get_endpoint_configs(key, filepath, endpoint_module) do
+    if File.regular?(filepath) do
+      ast = Parse.ast(filepath)
+
+      {_, configs} =
+        Macro.prewalk(ast, [], fn
+          {:config, _, [app, {:__aliases__, _, ^endpoint_module}, options]} = node, acc
+          when is_atom(app) and is_list(options) ->
+            if scanned_app?(app) and Keyword.keyword?(options) do
+              case Keyword.fetch(options, key) do
+                {:ok, value} -> {node, [{node, key, value} | acc]}
+                :error -> {node, acc}
+              end
+            else
+              {node, acc}
+            end
+
+          node, acc ->
+            {node, acc}
+        end)
+
+      configs
+    else
+      []
+    end
+  end
+
+  defp extract_app_configs({:config, _, opts} = ast, acc, key) when is_list(opts) do
+    value =
+      case opts do
+        [app, config] when is_atom(app) and is_list(config) ->
+          if scanned_app?(app) and Keyword.keyword?(config),
+            do: Keyword.fetch(config, key),
+            else: :error
+
+        [app, {:__aliases__, _, module}, config]
+        when is_atom(app) and is_list(module) and is_list(config) ->
+          if scanned_app?(app) and List.last(module) == :Endpoint and Keyword.keyword?(config),
+            do: Keyword.fetch(config, key),
+            else: :error
+
+        _ ->
+          :error
+      end
+
+    case value do
+      {:ok, value} -> {ast, [{ast, key, value} | acc]}
+      :error -> {ast, acc}
+    end
+  end
+
+  defp extract_app_configs(ast, acc, _key), do: {ast, acc}
+
+  defp scanned_app?(app) do
+    case Sobelow.get_env(:app_name) do
+      nil -> true
+      name -> Atom.to_string(app) == name
+    end
+  end
+
+  @doc false
+  def enabled_config?({_, _, value}), do: value not in [false, nil]
+
+  @doc false
+  def hsts_enabled?({_, _, value}) do
+    enabled_config?({nil, nil, value}) and
+      (not is_list(value) or
+         (Keyword.keyword?(value) and Keyword.get(value, :hsts, true) != false))
   end
 
   defp extract_fuzzy_configs({:config, _, opts} = ast, acc, key) when is_list(opts) do

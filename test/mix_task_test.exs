@@ -19,6 +19,8 @@ defmodule SobelowTest.MixTaskTest do
     :format,
     :ignored,
     :ignored_files,
+    :include_mix_tasks,
+    :include_scripts,
     :legacy_skips,
     :out,
     :private,
@@ -26,6 +28,7 @@ defmodule SobelowTest.MixTaskTest do
     :router,
     :skip,
     :strict,
+    :summary,
     :threshold,
     :verbose
   ]
@@ -103,6 +106,13 @@ defmodule SobelowTest.MixTaskTest do
     end
   end
 
+  test "extra scan paths are opt-in" do
+    assert parse([]).include_mix_tasks == false
+    assert parse([]).include_scripts == false
+    assert parse(["--include-mix-tasks", "--include-scripts"]).include_mix_tasks == true
+    assert parse(["--include-mix-tasks", "--include-scripts"]).include_scripts == true
+  end
+
   describe "--exit" do
     test "bare --exit defaults to low" do
       assert parse(["--exit"]).exit_on == :low
@@ -113,16 +123,16 @@ defmodule SobelowTest.MixTaskTest do
       assert parse(["--exit", "HIGH"]).exit_on == :high
     end
 
-    test "an unrecognised value disables the exit status" do
-      assert parse(["--exit", "nonsense"]).exit_on == false
+    test "rejects an unrecognised value" do
+      assert_raise Mix.Error, ~r/--exit/, fn -> parse(["--exit", "nonsense"]) end
     end
   end
 
   describe "--threshold" do
-    test "is case-insensitive and falls back to low" do
+    test "is case-insensitive" do
       assert parse(["--threshold", "HIGH"]).threshold == :high
       assert parse(["--threshold", "medium"]).threshold == :medium
-      assert parse(["--threshold", "nonsense"]).threshold == :low
+      assert_raise Mix.Error, ~r/--threshold/, fn -> parse(["--threshold", "nonsense"]) end
     end
   end
 
@@ -135,6 +145,38 @@ defmodule SobelowTest.MixTaskTest do
       assert parse(["--quiet", "-f", "txt"]).format == "quiet"
       assert parse(["--compact", "-f", "txt"]).format == "compact"
       assert parse(["--flycheck", "-f", "txt"]).format == "flycheck"
+    end
+
+    test "rejects an unknown format" do
+      assert_raise Mix.Error, ~r/--format/, fn -> parse(["--format", "jsson"]) end
+    end
+  end
+
+  test "rejects unknown command-line options" do
+    assert_raise Mix.Error, ~r/--frobnicate/, fn -> parse(["--frobnicate"]) end
+  end
+
+  @tag :tmp_dir
+  test "a missing project root fails the scan", %{tmp_dir: tmp_dir} do
+    assert_raise Mix.Error, ~r/Phoenix application/, fn ->
+      capture_io(:stderr, fn ->
+        Mix.Tasks.Sobelow.run(["--private", "--root", tmp_dir])
+      end)
+    end
+  end
+
+  @tag :tmp_dir
+  test "a project with no scannable source files fails the scan", %{tmp_dir: tmp_dir} do
+    File.write!(Path.join(tmp_dir, "mix.exs"), """
+    defmodule Empty.Mixfile do
+      def project, do: [app: :empty]
+    end
+    """)
+
+    assert_raise Mix.Error, ~r/No source files/, fn ->
+      capture_io(:stderr, fn ->
+        Mix.Tasks.Sobelow.run(["--private", "--root", tmp_dir, "--no-router"])
+      end)
     end
   end
 
@@ -372,5 +414,25 @@ defmodule SobelowTest.MixTaskTest do
 
       assert {:error, _message} = Mix.Tasks.Sobelow.read_config_file(path)
     end
+  end
+
+  test "summary defaults off and accepts the CLI flag" do
+    assert parse([]).summary == false
+    assert parse(["--summary"]).summary == true
+  end
+
+  @tag :tmp_dir
+  test "a failed config replacement leaves the saved configuration intact", %{tmp_dir: dir} do
+    path = Path.join(dir, ".sobelow-conf")
+    File.write!(path, "[private: true]")
+    File.chmod!(path, 0o400)
+
+    capture_io("y\n", fn ->
+      assert_raise Mix.Error, ~r/Could not write/, fn ->
+        Mix.Tasks.Sobelow.run(["--root", dir, "--save-config"])
+      end
+    end)
+
+    assert File.read!(path) == "[private: true]"
   end
 end

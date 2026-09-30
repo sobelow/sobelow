@@ -71,22 +71,23 @@ defmodule Sobelow.Config.CSP do
     do: {true, :high, plug}
 
   defp missing_csp_status({_, _, [:put_secure_browser_headers, {:%{}, _, opts}]} = plug, _) do
-    {!include_csp?(opts), :high, plug}
+    {missing?, confidence} = csp_status(opts)
+    {missing?, confidence, plug}
   end
 
   defp missing_csp_status({_, _, [:put_secure_browser_headers, {:@, _, opts}]} = plug, meta_file) do
     [{attr, _, nil} | _] = opts
 
-    has_csp? =
+    headers =
       Enum.find_value(meta_file.module_attrs, fn mod_attr ->
         case mod_attr do
           {^attr, _, [{:%{}, _, definition}]} -> definition
-          _ -> false
+          _ -> nil
         end
       end)
-      |> include_csp?()
 
-    {!has_csp?, :high, plug}
+    {missing?, confidence} = csp_status(headers)
+    {missing?, confidence, plug}
   end
 
   defp missing_csp_status({_, _, [:put_secure_browser_headers, _]} = plug, _),
@@ -94,16 +95,21 @@ defmodule Sobelow.Config.CSP do
 
   defp missing_csp_status(plug, _), do: {false, :high, plug}
 
-  defp include_csp?(nil), do: false
+  defp csp_status(nil), do: {true, :low}
 
-  defp include_csp?(headers) do
-    Enum.any?(headers, fn
-      {key, _} when is_binary(key) ->
-        String.downcase(key) == "content-security-policy"
+  defp csp_status(headers) do
+    header =
+      Enum.find(headers, fn
+        {key, _} when is_binary(key) -> String.downcase(key) == "content-security-policy"
+        _ -> false
+      end)
 
-      _ ->
-        false
-    end)
+    case header do
+      nil -> {true, :high}
+      {_, value} when is_binary(value) -> {String.trim(value) == "", :high}
+      {_, nil} -> {true, :high}
+      {_, _dynamic} -> {true, :low}
+    end
   end
 
   defp maybe_add_finding(

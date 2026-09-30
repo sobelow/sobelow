@@ -51,6 +51,46 @@ defmodule SobelowTest.Config.CSPTest do
            |> Enum.any?(&vuln?/1)
   end
 
+  test "an empty CSP header is still missing" do
+    assert {true, :high, _, _} =
+             check_source("""
+             defmodule Router do
+               pipeline :browser do
+                 plug :put_secure_browser_headers, %{"content-security-policy" => "  "}
+               end
+             end
+             """)
+  end
+
+  test "a dynamic CSP value remains a low-confidence finding" do
+    assert {true, :low, _, _} =
+             check_source("""
+             defmodule Router do
+               pipeline :browser do
+                 plug :put_secure_browser_headers, %{"content-security-policy" => policy()}
+               end
+             end
+             """)
+  end
+
+  test "an unresolved header attribute remains a low-confidence finding" do
+    assert {true, :low, _, _} =
+             check_source("""
+             defmodule Router do
+               pipeline :browser do
+                 plug :put_secure_browser_headers, @headers
+               end
+             end
+             """)
+  end
+
+  defp check_source(source) do
+    ast = Code.string_to_quoted!(source)
+    meta = Parse.get_meta_funs(ast)
+    [pipeline] = Parse.get_funs_of_type(ast, :pipeline)
+    CSP.check_vuln_pipeline(pipeline, meta)
+  end
+
   test "honors sobelow_skip on vulnerable pipelines" do
     Application.put_env(:sobelow, :skip, true)
     on_exit(fn -> Application.delete_env(:sobelow, :skip) end)

@@ -9,7 +9,6 @@ defmodule Sobelow.Vuln.Ecto do
 
       $ mix sobelow -i Vuln.Ecto
   """
-  alias Sobelow.Config
   alias Sobelow.Vuln
 
   @uid 24
@@ -20,27 +19,27 @@ defmodule Sobelow.Vuln.Ecto do
   @vuln_vsn ["2.2.0"]
 
   def run(root) do
-    plug_conf = root <> "/deps/ecto/mix.exs"
+    case Vuln.dependency_version(root, "ecto") do
+      {plug_conf, vsn} ->
+        case Version.parse(vsn) do
+          {:ok, vsn} ->
+            if Enum.any?(@vuln_vsn, fn v -> Version.match?(vsn, v) end) do
+              Vuln.print_finding(
+                plug_conf,
+                vsn,
+                "Ecto",
+                "Missing `is_nil` requirement",
+                "CVE-2017-20166",
+                "Ecto"
+              )
+            end
 
-    if File.exists?(plug_conf) do
-      vsn = Config.get_version(plug_conf)
+          _ ->
+            nil
+        end
 
-      case Version.parse(vsn) do
-        {:ok, vsn} ->
-          if Enum.any?(@vuln_vsn, fn v -> Version.match?(vsn, v) end) do
-            Vuln.print_finding(
-              plug_conf,
-              vsn,
-              "Ecto",
-              "Missing `is_nil` requirement",
-              "CVE-2017-20166",
-              "Ecto"
-            )
-          end
-
-        _ ->
-          nil
-      end
+      nil ->
+        nil
     end
   end
 end

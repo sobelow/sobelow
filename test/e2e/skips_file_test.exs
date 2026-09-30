@@ -118,6 +118,16 @@ defmodule Sobelow.SkipsFileTest do
     end
   end
 
+  test "an unreadable existing skip file is never replaced with only new entries" do
+    path = skips_path("basic")
+    File.write!(path, "# keep this review history\nDEADBEEF\n")
+    File.chmod!(path, 0o200)
+    on_exit(fn -> File.chmod(path, 0o600) end)
+    assert_raise Sobelow.ScanError, ~r/Could not read/, fn -> mark_skips("basic") end
+    File.chmod!(path, 0o600)
+    assert File.read!(path) == "# keep this review history\nDEADBEEF\n"
+  end
+
   describe "--legacy-skips" do
     test "appends without rewriting what is already in the file" do
       File.write!(skips_path("basic"), "ZZZZZZZ\n")

@@ -16,9 +16,12 @@ defmodule Mix.Tasks.Sobelow do
   * `--verbose -v` - Print vulnerable code snippets
   * `--ignore -i` - Ignore modules
   * `--ignore-files` - Ignore files
+  * `--include-mix-tasks` - Scan files under `lib/mix/tasks`
+  * `--include-scripts` - Scan `.exs` files and the `scripts/` and `priv/` directories
   * `--details -d` - Get module details
   * `--all-details` - Get all module details
   * `--private` - Skip update checks
+  * `--summary` - Print file scan counts on stderr
   * `--strict` - Exit when bad syntax is encountered
   * `--mark-skip-all` - Mark all printed findings as skippable
   * `--clear-skip` - Clear configuration added by `--mark-skip-all`
@@ -56,6 +59,7 @@ defmodule Mix.Tasks.Sobelow do
   * SQL.Stream
   * Config
   * Config.CSRF
+  * Config.CSRFRoute
   * Config.Headers
   * Config.CSP
   * Config.HTTPS
@@ -89,13 +93,17 @@ defmodule Mix.Tasks.Sobelow do
   """
   @switches [
     verbose: :boolean,
+    with_code: :boolean,
     root: :string,
     ignore: :string,
     ignore_files: :string,
+    include_mix_tasks: :boolean,
+    include_scripts: :boolean,
     details: :string,
     all_details: :boolean,
     private: :boolean,
     strict: :boolean,
+    summary: :boolean,
     diff: :string,
     skip: :boolean,
     mark_skip_all: :boolean,
@@ -131,7 +139,15 @@ defmodule Mix.Tasks.Sobelow do
   end
 
   def run(argv) do
-    {opts, _, _} = OptionParser.parse(argv, aliases: @aliases, switches: @switches)
+    {opts, args, invalid} = OptionParser.parse(argv, aliases: @aliases, strict: @switches)
+
+    # A bare `--exit` has always meant `--exit low`. OptionParser reports a
+    # missing string value as invalid, so retain that one legacy spelling.
+    invalid = Enum.reject(invalid, &(&1 == {"--exit", nil}))
+
+    if args != [] or invalid != [] do
+      fail("Invalid Sobelow arguments: #{inspect(args ++ invalid)}")
+    end
 
     root = Keyword.get(opts, :root, ".")
     config = Keyword.get(opts, :config, true)
@@ -153,13 +169,15 @@ defmodule Mix.Tasks.Sobelow do
         opts
       end
 
+    validate_scan_options!(opts)
+
     {verbose, diff, details, private, strict, skip, mark_skip_all, clear_skip, router, exit_on,
      format, ignored, ignored_files, all_details, out, threshold, version} = get_opts(opts, root)
 
     set_env(:verbose, verbose)
 
     if with_code = Keyword.get(opts, :with_code) do
-      Mix.Shell.IO.info("WARNING: --with-code is deprecated, please use --verbose instead.\n")
+      Sobelow.IO.info("WARNING: --with-code is deprecated, please use --verbose instead.\n")
       set_env(:verbose, with_code)
     end
 
@@ -167,6 +185,7 @@ defmodule Mix.Tasks.Sobelow do
     set_env(:details, details)
     set_env(:private, private)
     set_env(:strict, strict)
+    set_env(:summary, Keyword.get(opts, :summary, false))
     set_env(:skip, skip)
     set_env(:mark_skip_all, mark_skip_all)
     set_env(:clear_skip, clear_skip)
@@ -176,6 +195,8 @@ defmodule Mix.Tasks.Sobelow do
     set_env(:format, format)
     set_env(:ignored, ignored)
     set_env(:ignored_files, ignored_files)
+    set_env(:include_mix_tasks, Keyword.get(opts, :include_mix_tasks, false))
+    set_env(:include_scripts, Keyword.get(opts, :include_scripts, false))
     set_env(:out, out)
     set_env(:threshold, threshold)
     set_env(:version, version)
@@ -189,7 +210,11 @@ defmodule Mix.Tasks.Sobelow do
 
     cond do
       diff ->
+        # coveralls-ignore-start
+        # Developer-only comparison launches separate, uninstrumented Mix runs.
         run_diff(argv)
+
+      # coveralls-ignore-stop
 
       !is_nil(save_config) ->
         Sobelow.save_config(conf_file)
@@ -206,12 +231,45 @@ defmodule Mix.Tasks.Sobelow do
       true ->
         Sobelow.run()
     end
+  rescue
+    error in Sobelow.ScanError -> fail(Exception.message(error))
+  end
+
+  defp fail(message) do
+    if Code.ensure_loaded?(Mix) do
+      Mix.raise(message)
+    else
+      IO.puts(:stderr, message)
+      System.halt(1)
+    end
+  end
+
+  defp validate_scan_options!(opts) do
+    validate_choice!(opts, :exit, [false, nil, :low, :medium, :high], ["low", "medium", "high"])
+    validate_choice!(opts, :threshold, [:low, :medium, :high], ["low", "medium", "high"])
+    validate_choice!(opts, :format, [], ["txt", "json", "sarif", "compact", "flycheck", "quiet"])
+  end
+
+  defp validate_choice!(opts, key, atoms, strings) do
+    if Keyword.has_key?(opts, key) do
+      value = Keyword.fetch!(opts, key)
+
+      valid? =
+        value in atoms or
+          (is_binary(value) and String.downcase(value) in strings)
+
+      unless valid? do
+        fail("Invalid --#{key}: #{inspect(value)}. Expected #{Enum.join(strings, ", ")}.")
+      end
+    end
   end
 
   # This diff check is strictly used for testing/debugging and
   # isn't meant for general use.
   #
   # Useful for comparing the output of two different runs of Sobelow
+  # coveralls-ignore-start
+  # Developer-only external comparison, outside the instrumented scan pipeline.
   def run_diff(argv) do
     diff_idx = Enum.find_index(argv, fn i -> i === "--diff" end)
     {_, list} = List.pop_at(argv, diff_idx)
@@ -222,6 +280,8 @@ defmodule Mix.Tasks.Sobelow do
     {diff, _} = System.shell("diff sobelow.tempdiff #{diff_target}")
     IO.puts(diff)
   end
+
+  # coveralls-ignore-stop
 
   def set_env(key, value) do
     Application.put_env(:sobelow, key, value)

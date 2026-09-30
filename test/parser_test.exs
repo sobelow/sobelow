@@ -14,6 +14,15 @@ defmodule SobelowTest.ParserTest do
     :ok
   end
 
+  @tag :tmp_dir
+  test "an unreadable source is skipped with a warning", %{tmp_dir: tmp_dir} do
+    path = Path.join(tmp_dir, "gone.ex")
+
+    assert capture_io(:stderr, fn ->
+             assert Sobelow.Parse.ast(path) == {}
+           end) =~ "Could not read"
+  end
+
   test "Parser handles unquoted capture funcs" do
     func = """
     def call(list) do

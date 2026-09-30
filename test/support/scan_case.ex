@@ -27,6 +27,8 @@ defmodule Sobelow.ScanCase do
     format: "json",
     ignored: [],
     ignored_files: [],
+    include_mix_tasks: false,
+    include_scripts: false,
     legacy_skips: false,
     mark_skip_all: false,
     out: nil,
@@ -34,6 +36,7 @@ defmodule Sobelow.ScanCase do
     router: nil,
     skip: false,
     strict: false,
+    summary: false,
     threshold: :low,
     verbose: false,
     version: false

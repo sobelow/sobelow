@@ -45,4 +45,12 @@ defmodule Sobelow.NoRouterTest do
       end
     end
   end
+
+  test "resolves an explicit router relative to the scan root" do
+    temp_fixture_file("no_router", "lib/custom/router.ex", "defmodule Custom.Router do\nend\n")
+
+    {_stdout, stderr} = scan_io("no_router", router: "lib/custom/router.ex")
+
+    refute stderr =~ @warning
+  end
 end

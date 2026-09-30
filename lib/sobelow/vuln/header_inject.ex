@@ -9,7 +9,6 @@ defmodule Sobelow.Vuln.HeaderInject do
 
       $ mix sobelow -i Vuln.HeaderInject
   """
-  alias Sobelow.Config
   alias Sobelow.Vuln
 
   @uid 25
@@ -23,27 +22,27 @@ defmodule Sobelow.Vuln.HeaderInject do
   @vuln_vsn ["<=1.3.4 and >=1.3.0", "<=1.2.4 and >=1.2.0", "<=1.1.8 and >=1.1.0", "<=1.0.5"]
 
   def run(root) do
-    plug_conf = root <> "/deps/plug/mix.exs"
+    case Vuln.dependency_version(root, "plug") do
+      {plug_conf, vsn} ->
+        case Version.parse(vsn) do
+          {:ok, vsn} ->
+            if Enum.any?(@vuln_vsn, fn v -> Version.match?(vsn, v) end) do
+              Vuln.print_finding(
+                plug_conf,
+                vsn,
+                "Plug",
+                "Header Injection",
+                "CVE-2018-1000883",
+                "HeaderInject"
+              )
+            end
 
-    if File.exists?(plug_conf) do
-      vsn = Config.get_version(plug_conf)
+          _ ->
+            nil
+        end
 
-      case Version.parse(vsn) do
-        {:ok, vsn} ->
-          if Enum.any?(@vuln_vsn, fn v -> Version.match?(vsn, v) end) do
-            Vuln.print_finding(
-              plug_conf,
-              vsn,
-              "Plug",
-              "Header Injection",
-              "CVE-2018-1000883",
-              "HeaderInject"
-            )
-          end
-
-        _ ->
-          nil
-      end
+      nil ->
+        nil
     end
   end
 end

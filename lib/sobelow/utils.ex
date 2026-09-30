@@ -58,8 +58,12 @@ defmodule Sobelow.Utils do
   ## for the user.
   def all_files(filepath, _directory \\ "") do
     if File.dir?(filepath) do
-      Path.wildcard(filepath <> "/**/*.ex")
-      |> Enum.reject(&String.contains?(&1, "/mix/tasks/"))
+      extension = if Sobelow.get_env(:include_scripts), do: "{ex,exs}", else: "ex"
+
+      Path.wildcard(filepath <> "/**/*." <> extension)
+      |> Enum.reject(fn path ->
+        !Sobelow.get_env(:include_mix_tasks) && String.contains?(path, "/mix/tasks/")
+      end)
     else
       warning = """
       WARNING: Web directory was not found in the expected location.

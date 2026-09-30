@@ -6,6 +6,16 @@ defmodule SobelowTest.E2E.RegressionTest do
 
   use Sobelow.ScanCase, async: false
 
+  test "running a second scan in one VM starts with empty logs" do
+    first = scan("basic")
+
+    second =
+      ExUnit.CaptureIO.capture_io(fn -> Sobelow.run() end)
+      |> Jason.decode!()
+
+    assert second == first
+  end
+
   describe "Config.Secrets with values that are not plain string literals" do
     test "heredoc and escaped-quote secrets are reported instead of crashing the scan" do
       report = scan("secrets")

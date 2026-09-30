@@ -23,20 +23,28 @@ defmodule Sobelow.Config.HTTPS do
     path = dir_path <> "prod.exs"
 
     if File.exists?(path) && Enum.member?(configs, "prod.exs") do
-      https = Config.get_configs_by_file(:https, path)
+      statuses =
+        Config.effective_app_configs(path)
+        |> Enum.map(fn options ->
+          states =
+            Enum.map([:https, :force_ssl], &Config.setting_status(Keyword.get(options, &1)))
 
-      (Config.get_configs_by_file(:force_ssl, path) ++ https)
-      |> handle_https(path)
+          cond do
+            :enabled in states -> :enabled
+            :unknown in states -> :unknown
+            true -> :disabled
+          end
+        end)
+
+      cond do
+        statuses == [] or :disabled in statuses -> add_finding(path, :high)
+        :unknown in statuses -> add_finding(path, :low)
+        true -> nil
+      end
     end
   end
 
-  defp handle_https(opts, path) do
-    if Enum.empty?(opts) do
-      add_finding(path)
-    end
-  end
-
-  defp add_finding(file) do
+  defp add_finding(file, confidence) do
     reason = "HTTPS configuration details could not be found in `prod.exs`."
 
     finding =
@@ -47,7 +55,7 @@ defmodule Sobelow.Config.HTTPS do
         vuln_source: reason,
         vuln_line_no: 0,
         vuln_col_no: 0,
-        confidence: :high
+        confidence: confidence
       }
       |> Finding.fetch_fingerprint()
 

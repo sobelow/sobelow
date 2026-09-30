@@ -14,6 +14,7 @@ defmodule Sobelow.Mixfile do
       start_permanent: Mix.env() == :prod,
       deps: deps(),
       test_coverage: [tool: ExCoveralls],
+      test_ignore_filters: [~r{^test/(?:fixtures|support)/}, ~r{_helper\.exs$}],
       package: package(),
       description: "Security-focused static analysis for Elixir & the Phoenix framework",
       name: "Sobelow",
@@ -40,7 +41,7 @@ defmodule Sobelow.Mixfile do
   end
 
   def application do
-    [extra_applications: [:logger, :eex, :inets]]
+    [extra_applications: [:logger, :eex, :inets, :public_key]]
   end
 
   defp elixirc_paths(:test), do: ["lib", "test/support"]

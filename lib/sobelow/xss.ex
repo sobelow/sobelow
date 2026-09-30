@@ -35,7 +35,7 @@ defmodule Sobelow.XSS do
         |> Path.basename()
       end
 
-    allowed = @submodules -- (Sobelow.get_ignored() ++ skip_mods)
+    allowed = Sobelow.allowed_checks(__MODULE__, @submodules, skip_mods)
 
     Enum.each(allowed, fn mod ->
       if mod === Raw do
@@ -47,7 +47,7 @@ defmodule Sobelow.XSS do
   end
 
   def get_template_vulns(meta_file) do
-    allowed = @submodules -- Sobelow.get_ignored()
+    allowed = Sobelow.allowed_checks(__MODULE__, @submodules)
     funs = meta_file.raw
 
     if Enum.member?(allowed, Raw) do
