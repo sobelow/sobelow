@@ -1,12 +1,6 @@
 defmodule Sobelow.FindingCollectionTest do
-  use ExUnit.Case, async: false
-  alias Sobelow.{Finding, FindingLog, Fingerprint, FunctionAnalysis}
-
-  setup do
-    {:ok, _} = FindingLog.start_link()
-    {:ok, _} = Fingerprint.start_link()
-    :ok
-  end
+  use Sobelow.CoverageCase, async: false
+  alias Sobelow.{Fingerprint, FunctionAnalysis}
 
   test "batches retain full sources, custom metadata, counts and stable ordering" do
     source = Code.string_to_quoted!("def read(path), do: File.read(path)")

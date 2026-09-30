@@ -1,18 +1,8 @@
 defmodule SobelowTest.FormatTest do
-  use ExUnit.Case
+  use Sobelow.CoverageCase, async: false
   alias Sobelow.RCE.CodeModule
 
   @metafile %{filename: "test.ex", controller?: true}
-
-  setup do
-    Application.put_env(:sobelow, :format, "json")
-    Application.put_env(:sobelow, :threshold, :low)
-    Application.put_env(:sobelow, :skip, false)
-    Sobelow.Fingerprint.start_link()
-    Sobelow.FindingLog.start_link()
-
-    :ok
-  end
 
   test "Formats variables with map access" do
     func = """

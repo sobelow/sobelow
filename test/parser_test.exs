@@ -1,15 +1,11 @@
 defmodule SobelowTest.ParserTest do
-  use ExUnit.Case
-  import ExUnit.CaptureIO
+  use Sobelow.CoverageCase, async: false
   alias Sobelow.RCE.CodeModule
 
   @metafile %{filename: "test.ex", controller?: true}
 
   setup do
     Application.put_env(:sobelow, :format, "txt")
-    Application.put_env(:sobelow, :threshold, :low)
-    Application.put_env(:sobelow, :skip, false)
-    Sobelow.Fingerprint.start_link()
 
     :ok
   end
@@ -33,8 +29,6 @@ defmodule SobelowTest.ParserTest do
     {_, ast} = Code.string_to_quoted(func)
 
     run_test = fn ->
-      Sobelow.FindingLog.start_link()
-
       CodeModule.run(ast, @metafile)
 
       # Findings are printed once the scan finishes rather than as they are
