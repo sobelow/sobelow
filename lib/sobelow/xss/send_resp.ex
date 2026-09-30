@@ -5,12 +5,17 @@ defmodule Sobelow.XSS.SendResp do
   This submodule looks for XSS vulnerabilities in the `body`
   argument of `Conn.send_resp`.
 
+  A known non-HTML content type on the response connection suppresses the
+  finding. Both `put_resp_content_type` and `put_resp_header` with the literal
+  `"content-type"` header are recognized. Unknown content types remain findings.
+
   SendResp checks can be ignored with the following command:
 
       $ mix sobelow -i XSS.SendResp
   """
   @uid 31
   @finding_type "XSS.SendResp: XSS in `send_resp`"
+  @setters [:put_resp_content_type, :put_resp_header]
 
   use Sobelow.Finding
 
@@ -29,6 +34,16 @@ defmodule Sobelow.XSS.SendResp do
   @doc false
   def get_content_type({:put_resp_content_type, _, opts}), do: content_type_arg(opts)
   def get_content_type({{_, _, [_, :put_resp_content_type]}, _, opts}), do: content_type_arg(opts)
+
+  def get_content_type({:put_resp_header, _, opts}), do: header_content_type_arg(opts)
+
+  def get_content_type({{_, _, [_, :put_resp_header]}, _, opts}),
+    do: header_content_type_arg(opts)
+
+  def get_content_type(_), do: :unknown
+
+  defp header_content_type_arg([_conn, "content-type", type]), do: type
+  defp header_content_type_arg(_), do: :unknown
 
   defp content_type_arg([type, options]) when is_list(options), do: type
   defp content_type_arg([_conn, type | _]), do: type
@@ -159,8 +174,11 @@ defmodule Sobelow.XSS.SendResp do
   end
 
   defp connection_content_type({:|>, _, [_conn, setter]}, _types) do
-    if setter?(setter) do
-      setter |> elem(2) |> List.first()
+    if setter?(setter, 1) do
+      # Supply the piped connection only for argument selection. Findings keep
+      # the original call AST and therefore their existing locations and hashes.
+      {name, meta, args} = setter
+      get_content_type({name, meta, [:connection | args]})
     else
       # Another operation after setting the header may alter the connection.
       # Keep the finding when that operation is not understood.
@@ -176,16 +194,20 @@ defmodule Sobelow.XSS.SendResp do
     if setter?(setter), do: get_content_type(setter), else: :unknown
   end
 
-  defp setter?({:put_resp_content_type, _, _}), do: true
+  defp setter?(setter, extra \\ 0)
 
-  defp setter?({{:., _, [{:__aliases__, _, aliases}, :put_resp_content_type]}, _, _} = setter) do
+  defp setter?({name, _, args} = setter, extra) when name in @setters and is_list(args),
+    do: Sobelow.Lexical.unqualified?(setter, :Conn, extra)
+
+  defp setter?({{:., _, [{:__aliases__, _, aliases}, name]}, _, args} = setter, _extra)
+       when name in @setters and is_list(args) do
     case Sobelow.Lexical.matches?(setter, :Conn) do
       nil -> List.last(aliases) == :Conn
       matched? -> matched?
     end
   end
 
-  defp setter?(_), do: false
+  defp setter?(_, _extra), do: false
 
   defp contains_html?(content_type) do
     content_type

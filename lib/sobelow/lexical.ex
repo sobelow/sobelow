@@ -10,7 +10,10 @@ defmodule Sobelow.Lexical do
 
   def functions(ast) do
     {_env, acc} =
-      walk(ast, %{aliases: %{}, imports: %{}, repo?: false}, %{functions: %{}, calls: %{}})
+      walk(ast, %{aliases: %{}, imports: %{}, repo?: false, local_functions: []}, %{
+        functions: %{},
+        calls: %{}
+      })
 
     acc.functions
   end
@@ -58,13 +61,21 @@ defmodule Sobelow.Lexical do
 
   def unqualified?({name, _, args} = node, target, extra \\ 0) do
     case resolution(node) do
-      %{imports: imports, repo?: repo?} ->
+      %{imports: imports, repo?: repo?} = env ->
         module = if is_list(target), do: target, else: Map.get(@modules, target, [target])
         arity = length(args || []) + extra
 
-        (is_atom(target) and target not in [:SQL, :Repo]) or
-          (target == :Repo and repo? and name in [:query, :query!]) or
-          imported?(Map.get(imports, module), {name, arity})
+        local_sink? =
+          (target == :HTML and name == :raw) or
+            (target == :Conn and name == :put_resp_header)
+
+        if local_sink? and {name, arity} in Map.get(env, :local_functions, []) do
+          false
+        else
+          (is_atom(target) and target not in [:SQL, :Repo]) or
+            (target == :Repo and repo? and name in [:query, :query!]) or
+            imported?(Map.get(imports, module), {name, arity})
+        end
 
       _ ->
         is_atom(target) and target not in [:SQL, :Repo]
@@ -166,7 +177,9 @@ defmodule Sobelow.Lexical do
   defp walk({:__block__, _, nodes}, env, acc), do: walk(nodes, env, acc)
 
   defp walk({:defmodule, _, [_name, [do: body]]}, env, acc) do
-    {_inner, acc} = walk(body, env, acc)
+    # Local definitions apply throughout their module, including before their
+    # declaration. Nested modules inherit imports and aliases, not local functions.
+    {_inner, acc} = walk(body, %{env | local_functions: local_functions(body)}, acc)
     {env, acc}
   end
 
@@ -226,7 +239,13 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk({name, _, args} = node, env, acc) when is_atom(name) and is_list(args) do
-    acc = put_call(acc, node, %{imports: env.imports, repo?: env.repo?})
+    acc =
+      put_call(acc, node, %{
+        imports: env.imports,
+        repo?: env.repo?,
+        local_functions: env.local_functions
+      })
+
     {_inner, acc} = walk(args, env, acc)
     {env, acc}
   end
@@ -241,6 +260,25 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk(_, env, acc), do: {env, acc}
+
+  defp local_functions({:__block__, _, nodes}),
+    do: Enum.flat_map(nodes, &local_functions/1) |> Enum.uniq()
+
+  defp local_functions({kind, _, [head | _]}) when kind in [:def, :defp],
+    do: local_signatures(head)
+
+  defp local_functions(_), do: []
+
+  defp local_signatures({:when, _, [head | _]}), do: local_signatures(head)
+
+  defp local_signatures({name, _, args})
+       when name in [:raw, :put_resp_header] and is_list(args) do
+    arity = length(args)
+    defaults = Enum.count(args, &match?({:\\, _, _}, &1))
+    Enum.map((arity - defaults)..arity, &{name, &1})
+  end
+
+  defp local_signatures(_), do: []
 
   defp put_call(acc, node, resolution),
     do: %{acc | calls: Map.put(acc.calls, node_key(node), resolution)}
