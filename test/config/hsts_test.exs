@@ -1,14 +1,9 @@
 defmodule SobelowTest.Config.HstsTest do
-  use ExUnit.Case
+  use Sobelow.CoverageCase, async: false
   alias Sobelow.Config.HSTS
 
   setup do
-    Application.put_env(:sobelow, :format, "json")
-    Application.put_env(:sobelow, :threshold, :low)
-    Application.put_env(:sobelow, :skip, false)
-    Sobelow.Fingerprint.start_link()
-    Sobelow.FindingLog.start_link()
-
+    Application.put_env(:sobelow, :app_name, "phoenix_app")
     :ok
   end
 

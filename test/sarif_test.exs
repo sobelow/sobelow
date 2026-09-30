@@ -1,5 +1,5 @@
 defmodule SobelowTest.SarifTest do
-  use ExUnit.Case
+  use Sobelow.CoverageCase, async: false
 
   alias Sobelow.RCE.CodeModule
 
@@ -7,10 +7,6 @@ defmodule SobelowTest.SarifTest do
 
   setup do
     Application.put_env(:sobelow, :format, "sarif")
-    Application.put_env(:sobelow, :threshold, :low)
-    Application.put_env(:sobelow, :skip, false)
-    Sobelow.Fingerprint.start_link()
-    Sobelow.FindingLog.start_link()
 
     :ok
   end
