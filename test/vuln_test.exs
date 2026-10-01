@@ -26,6 +26,37 @@ defmodule SobelowTest.VulnTest do
     assert Sobelow.Vuln.dependency_version(tmp_dir, "plug") == {lockfile, "1.3.1"}
   end
 
+  @mix_lock """
+  %{
+    "plug": {:hex, :plug, "1.3.1", "0123abcd", [:mix], [], "hexpm", "4567ef89"},
+    "other": {:hex, :other_package, "2.0.0", "0123abcd", [:mix], [], "hexpm", "4567ef89"},
+  }
+  """
+
+  @tag :tmp_dir
+  test "a lockfile in the format Mix writes retains its locked version", %{tmp_dir: tmp_dir} do
+    lockfile = Path.join(tmp_dir, "mix.lock")
+    File.write!(lockfile, @mix_lock)
+    assert Sobelow.Vuln.dependency_version(tmp_dir, "plug") == {lockfile, "1.3.1"}
+  end
+
+  @tag :tmp_dir
+  test "a dependency alias in a Mix-written lockfile is still not that package", %{
+    tmp_dir: tmp_dir
+  } do
+    File.write!(Path.join(tmp_dir, "mix.lock"), @mix_lock)
+    assert Sobelow.Vuln.dependency_version(tmp_dir, "other") == nil
+  end
+
+  @tag :tmp_dir
+  test "reading a Mix-written lockfile prints no parser warnings", %{tmp_dir: tmp_dir} do
+    File.write!(Path.join(tmp_dir, "mix.lock"), @mix_lock)
+
+    assert ExUnit.CaptureIO.capture_io(:stderr, fn ->
+             Sobelow.Vuln.dependency_version(tmp_dir, "plug")
+           end) == ""
+  end
+
   @tag :tmp_dir
   test "nonliteral Hex package names are never evaluated", %{tmp_dir: tmp_dir} do
     marker = Path.join(tmp_dir, "executed")

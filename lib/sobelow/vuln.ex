@@ -65,10 +65,10 @@ defmodule Sobelow.Vuln do
     with {:ok, {:%{}, _, entries}} <-
            Sobelow.Scan.fetch({:lockfile, Path.expand(lockfile)}, fn ->
              with {:ok, source} <- Sobelow.Scan.source(lockfile),
-                  do: Code.string_to_quoted(source)
+                  do: Code.string_to_quoted(source, emit_warnings: false)
            end),
-         {^package, {:{}, _, [:hex, hex_package, version | _]}} <-
-           List.keyfind(entries, package, 0),
+         {_name, {:{}, _, [:hex, hex_package, version | _]}} <-
+           Enum.find(entries, &lock_entry?(&1, package)),
          true <- is_atom(hex_package) and Atom.to_string(hex_package) == package,
          true <- is_binary(version) do
       {lockfile, version}
@@ -76,6 +76,11 @@ defmodule Sobelow.Vuln do
       _ -> nil
     end
   end
+
+  # Mix writes `"plug": {...}`, whose keys parse as atoms rather than strings.
+  defp lock_entry?({name, _}, package) when is_binary(name), do: name == package
+  defp lock_entry?({name, _}, package) when is_atom(name), do: Atom.to_string(name) == package
+  defp lock_entry?(_entry, _package), do: false
 
   def print_finding(file, vsn, package, detail, cve \\ "TBA", mod) do
     type = "Vuln.#{mod}: Known Vulnerable Dependency - #{package} v#{vsn}"
