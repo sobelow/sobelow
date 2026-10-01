@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+  * Bug fixes
+    * Lockfile dependency advisories now read lockfiles in the format Mix
+      writes. Mix's `"plug": {...}` keys parse as atoms, so the lookup never
+      matched and every advisory check passed silently whenever `deps/` was
+      absent. Parsing the lockfile also no longer prints a "found quoted
+      keyword" warning per dependency on Elixir 1.20.
+
 ## v0.16.0
 
   * Bug fixes

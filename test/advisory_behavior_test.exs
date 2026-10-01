@@ -16,14 +16,16 @@ defmodule Sobelow.AdvisoryBehaviorTest do
       tmp_dir: dir
     } do
       lock = Path.join(dir, "mix.lock")
+      package = unquote(package)
 
-      for {version, count} <- [{unquote(vulnerable), 1}, {unquote(fixed), 0}, {"invalid", 0}] do
+      for {version, count} <- [{unquote(vulnerable), 1}, {unquote(fixed), 0}, {"invalid", 0}],
+          entry = {:hex, String.to_atom(package), version},
+          contents <- [
+            inspect(%{package => entry}),
+            ~s(%{\n  "#{package}": #{inspect(entry)},\n}\n)
+          ] do
         reset_logs()
-
-        File.write!(
-          lock,
-          inspect(%{unquote(package) => {:hex, String.to_atom(unquote(package)), version}})
-        )
+        File.write!(lock, contents)
 
         unquote(module).run(dir)
         assert length(logged_findings()) == count
