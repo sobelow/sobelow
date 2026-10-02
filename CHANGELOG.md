@@ -7,7 +7,7 @@
       writes. Mix's `"plug": {...}` keys parse as atoms, so the lookup never
       matched and every advisory check passed silently whenever `deps/` was
       absent. Parsing the lockfile also no longer prints a "found quoted
-      keyword" warning per dependency on Elixir 1.20.
+      keyword" warning per dependency.
 
 ## v0.16.0
 
