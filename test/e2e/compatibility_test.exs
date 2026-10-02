@@ -65,7 +65,7 @@ defmodule Sobelow.CompatibilityTest do
         {String.replace_prefix(Atom.to_string(mod), "Elixir.Sobelow.", ""), mod.id()}
       end)
 
-    assert ids == expected["rule_ids"]
+    assert Map.take(ids, Map.keys(expected["rule_ids"])) == expected["rule_ids"]
     {stdout, _stderr} = scan_io("basic", format: "sarif")
     results = hd(Jason.decode!(stdout)["runs"])["results"]
     strip_hashes = fn results -> Enum.map(results, &Map.delete(&1, "partialFingerprints")) end

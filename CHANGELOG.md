@@ -10,6 +10,8 @@
       which still applies on top. Unknown names fail the run instead of
       scanning nothing. `.sobelow-conf` accepts `only:` and `--save-config`
       records it.
+    * Add `DOS.DecodeAtoms` for dynamic input decoded with atom-creating options
+      in Jason, Poison, and YamlElixir string readers.
 
   * Bug fixes
     * Lockfile dependency advisories now read lockfiles in the format Mix
