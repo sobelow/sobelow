@@ -19,13 +19,19 @@ defmodule Sobelow.DOS do
           $ mix sobelow -d DOS.StringToAtom
           $ mix sobelow -d DOS.ListToAtom
           $ mix sobelow -d DOS.BinToAtom
+          $ mix sobelow -d DOS.DecodeAtoms
 
   Denial of Service checks of all types can be ignored with the
   following command:
 
       $ mix sobelow -i DOS
   """
-  @submodules [Sobelow.DOS.StringToAtom, Sobelow.DOS.ListToAtom, Sobelow.DOS.BinToAtom]
+  @submodules [
+    Sobelow.DOS.StringToAtom,
+    Sobelow.DOS.ListToAtom,
+    Sobelow.DOS.BinToAtom,
+    Sobelow.DOS.DecodeAtoms
+  ]
   use Sobelow.FindingType
 
   def get_vulns(fun, meta_file, _web_root, skip_mods \\ []) do

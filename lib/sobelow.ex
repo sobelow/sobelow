@@ -220,6 +220,7 @@ defmodule Sobelow do
       "DOS.StringToAtom" -> Sobelow.DOS.StringToAtom
       "DOS.ListToAtom" -> Sobelow.DOS.ListToAtom
       "DOS.BinToAtom" -> Sobelow.DOS.BinToAtom
+      "DOS.DecodeAtoms" -> Sobelow.DOS.DecodeAtoms
       _ -> nil
     end
   end
