@@ -32,6 +32,11 @@ defmodule Sobelow.Vuln do
   alias Sobelow.{Finding, Print, Utils}
   use Sobelow.FindingType
 
+  # Mix's `"plug": {...}` keys warn as unnecessarily quoted. As in Mix.Dep.Lock,
+  # Elixir 1.12-1.15 silence that with `warn_on_unnecessary_quotes` and 1.16+
+  # only with `emit_warnings`; the tokenizer ignores options it doesn't know.
+  @lockfile_parse_opts [emit_warnings: false, warn_on_unnecessary_quotes: false]
+
   def get_vulns(root) do
     allowed = Sobelow.allowed_checks(__MODULE__, @submodules)
 
@@ -65,7 +70,7 @@ defmodule Sobelow.Vuln do
     with {:ok, {:%{}, _, entries}} <-
            Sobelow.Scan.fetch({:lockfile, Path.expand(lockfile)}, fn ->
              with {:ok, source} <- Sobelow.Scan.source(lockfile),
-                  do: Code.string_to_quoted(source, emit_warnings: false)
+                  do: Code.string_to_quoted(source, @lockfile_parse_opts)
            end),
          {_name, {:{}, _, [:hex, hex_package, version | _]}} <-
            Enum.find(entries, &lock_entry?(&1, package)),
