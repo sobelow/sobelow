@@ -15,6 +15,7 @@ defmodule Mix.Tasks.Sobelow do
   * `--root -r` - Specify application root directory
   * `--verbose -v` - Print vulnerable code snippets
   * `--ignore -i` - Ignore modules
+  * `--only` - Run only the given modules
   * `--ignore-files` - Ignore files
   * `--include-mix-tasks` - Scan files under `lib/mix/tasks`
   * `--include-scripts` - Scan `.exs` files and the `scripts/` and `priv/` directories
@@ -47,6 +48,13 @@ defmodule Mix.Tasks.Sobelow do
   comma-separated list.
 
       mix sobelow -i XSS.Raw,Traversal
+
+  ## Running selected modules
+
+  To run only some modules, pass them as a comma-separated list. A category
+  runs all of its checks; `--ignore` still applies on top.
+
+      mix sobelow --only XSS.Raw,SQL
 
   ## Supported modules
 
@@ -97,6 +105,7 @@ defmodule Mix.Tasks.Sobelow do
     with_code: :boolean,
     root: :string,
     ignore: :string,
+    only: :string,
     ignore_files: :string,
     include_mix_tasks: :boolean,
     include_scripts: :boolean,
@@ -173,7 +182,8 @@ defmodule Mix.Tasks.Sobelow do
     validate_scan_options!(opts)
 
     {verbose, diff, details, private, strict, skip, mark_skip_all, clear_skip, router, exit_on,
-     format, ignored, ignored_files, all_details, out, threshold, version} = get_opts(opts, root)
+     format, ignored, only, ignored_files, all_details, out, threshold,
+     version} = get_opts(opts, root)
 
     set_env(:verbose, verbose)
 
@@ -195,6 +205,7 @@ defmodule Mix.Tasks.Sobelow do
     set_env(:exit_on, exit_on)
     set_env(:format, format)
     set_env(:ignored, ignored)
+    set_env(:only, only)
     set_env(:ignored_files, ignored_files)
     set_env(:include_mix_tasks, Keyword.get(opts, :include_mix_tasks, false))
     set_env(:include_scripts, Keyword.get(opts, :include_scripts, false))
@@ -423,6 +434,14 @@ defmodule Mix.Tasks.Sobelow do
         ignore -> ignore
       end
 
+    only =
+      case Keyword.get(opts, :only, []) do
+        only_str when is_binary(only_str) -> String.split(only_str, ",", trim: true)
+        only -> only
+      end
+
+    validate_only!(only)
+
     ignored_files =
       case Keyword.get(opts, :ignore_files, []) do
         ignore_files when is_list(ignore_files) ->
@@ -443,7 +462,16 @@ defmodule Mix.Tasks.Sobelow do
       end
 
     {verbose, diff, details, private, strict, skip, mark_skip_all, clear_skip, router, exit_on,
-     format, ignored, ignored_files, all_details, out, threshold, version}
+     format, ignored, only, ignored_files, all_details, out, threshold, version}
+  end
+
+  # `--ignore` passes unknown names over in silence, but an allow-list that
+  # names nothing real would run no checks at all and report a clean scan.
+  defp validate_only!(only) do
+    case Enum.reject(only, &Sobelow.get_mod/1) do
+      [] -> :ok
+      unknown -> fail("Invalid --only module: #{Enum.join(unknown, ", ")}")
+    end
   end
 
   # Future updates will include format hinting based on the outfile name. Additional output

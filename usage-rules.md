@@ -103,6 +103,8 @@ it does not go stale silently when the line moves.
 
 `--ignore` (`-i`) is different again: it disables a whole check for the entire scan.
 Reach for it only when a check does not apply to the project at all.
+`--only` is its inverse: `--only XSS.Raw,SQL` runs just those checks (a category name
+runs all of its checks). Use it to focus a run, not as a substitute for triage.
 
 ## Configuration file
 

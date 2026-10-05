@@ -102,6 +102,7 @@ defmodule Sobelow do
       exit: get_env(:exit_on),
       format: get_env(:format),
       ignore: get_env(:ignored),
+      only: get_env(:only) || [],
       ignore_files: relative_ignored_files(),
       include_mix_tasks: get_env(:include_mix_tasks),
       include_scripts: get_env(:include_scripts),
@@ -224,7 +225,37 @@ defmodule Sobelow do
   end
 
   def get_ignored do
-    Sobelow.Scan.ignored(fn -> get_env(:ignored) |> Enum.map(&get_mod/1) end)
+    Sobelow.Scan.ignored(&ignored_modules/0)
+  end
+
+  @doc false
+  # Every module a scan should skip. `--only` is applied by ignoring whatever it
+  # does not select, so categories and checks keep a single filtering path.
+  def ignored_modules do
+    ignored = Enum.map(get_env(:ignored) || [], &get_mod/1)
+
+    case get_env(:only) || [] do
+      [] -> ignored
+      only -> ignored ++ (all_modules() -- selected_modules(only))
+    end
+  end
+
+  defp all_modules do
+    @submodules ++ finding_modules()
+  end
+
+  # A category selects all of its checks; a check also keeps its category, which
+  # would otherwise be dropped before its checks run.
+  defp selected_modules(only) do
+    Enum.flat_map(only, fn name ->
+      mod = get_mod(name)
+
+      case Enum.find(@submodules, &(&1 == mod or mod in &1.finding_modules())) do
+        nil -> []
+        ^mod -> [mod | apply(mod, :finding_modules, [])]
+        category -> [category, mod]
+      end
+    end)
   end
 
   @doc false
