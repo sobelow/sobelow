@@ -22,6 +22,7 @@ defmodule SobelowTest.MixTaskTest do
     :include_mix_tasks,
     :include_scripts,
     :legacy_skips,
+    :only,
     :out,
     :private,
     :root,
@@ -88,6 +89,49 @@ defmodule SobelowTest.MixTaskTest do
 
     test "accepts a single module" do
       assert parse(["--ignore", "Config.CSRF"]).ignored == ["Config.CSRF"]
+    end
+  end
+
+  describe "--only" do
+    test "defaults to an empty list" do
+      assert parse([]).only == []
+    end
+
+    test "splits a comma-separated list" do
+      assert parse(["--only", "XSS.Raw,SQL"]).only == ["XSS.Raw", "SQL"]
+    end
+
+    test "rejects an unknown module rather than scanning nothing" do
+      assert_raise Mix.Error, ~r/Invalid --only module: Nope/, fn ->
+        parse(["--only", "XSS.Raw,Nope"])
+      end
+    end
+
+    @tag :tmp_dir
+    test "is read from .sobelow-conf, with the CLI taking precedence", %{tmp_dir: tmp_dir} do
+      File.write!(Path.join(tmp_dir, ".sobelow-conf"), ~s([only: ["SQL"]]))
+
+      assert parse(["--root", tmp_dir]).only == ["SQL"]
+      assert parse(["--root", tmp_dir, "--only", "XSS"]).only == ["XSS"]
+    end
+
+    @tag :tmp_dir
+    test "round-trips through --save-config", %{tmp_dir: tmp_dir} do
+      capture_io(fn ->
+        Mix.Tasks.Sobelow.run([
+          "--root",
+          tmp_dir,
+          "--private",
+          "--version",
+          "--only",
+          "XSS.Raw",
+          "--save-config"
+        ])
+      end)
+
+      {:ok, conf} = Mix.Tasks.Sobelow.read_config_file(Path.join(tmp_dir, ".sobelow-conf"))
+
+      assert conf[:only] == ["XSS.Raw"]
     end
   end
 

@@ -41,7 +41,7 @@ defmodule Sobelow.Scan do
 
   def configure(categories) do
     env = Map.new(Application.get_all_env(:sobelow))
-    ignored = Enum.map(Map.get(env, :ignored, []), &Sobelow.get_mod/1)
+    ignored = Sobelow.ignored_modules()
     {_, ignored_fingerprints} = Sobelow.Fingerprint.value()
 
     checks =

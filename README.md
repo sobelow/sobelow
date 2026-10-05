@@ -96,6 +96,11 @@ relative to the application root.
   * `--ignore` or `-i` - Ignore given finding types. Accepts a
   comma-separated list of module names, e.g. `XSS.Raw,Traversal`.
 
+  * `--only` - Run only the given finding types. Accepts the same
+  comma-separated module names as `--ignore`, e.g. `XSS.Raw,SQL`. A
+  category runs all of its checks, and `--ignore` still applies on top.
+  Unknown names are an error.
+
   * `--ignore-files` - Ignore files. Accepts a comma-separated
   list of file names, e.g. `config/prod.exs`.
 
