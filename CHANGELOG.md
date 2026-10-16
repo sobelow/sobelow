@@ -8,6 +8,9 @@
       matched and every advisory check passed silently whenever `deps/` was
       absent. Parsing the lockfile also no longer prints a "found quoted
       keyword" warning per dependency.
+    * `CI.OS`, `Misc.BinToTerm` and `DOS.BinToAtom` now detect calls made
+      through explicit Erlang imports, such as `import :os, only: [cmd: 1]`
+      followed by `cmd(input)`.
 
 ## v0.16.0
 

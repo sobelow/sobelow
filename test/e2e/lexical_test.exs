@@ -184,4 +184,66 @@ defmodule Sobelow.LexicalTest do
 
     assert scan("basic")["total_findings"] > 10
   end
+
+  test "explicitly imported Erlang sinks are reported by each affected check" do
+    path =
+      temp_fixture_file("basic", "lib/erlang_imports.ex", """
+      defmodule ErlangImports do
+        import :os, only: [cmd: 1]
+        import :erlang, only: [binary_to_term: 1, binary_to_atom: 2]
+        def command(input), do: cmd(input)
+        def piped_command(input), do: input |> cmd()
+        def captured_command(inputs), do: Enum.map(inputs, &cmd/1)
+        def anonymous_command(inputs), do: Enum.map(inputs, &cmd(&1))
+        def decode(input), do: binary_to_term(input)
+        def piped_decode(input), do: input |> binary_to_term()
+        def atom(input), do: binary_to_atom(input, :utf8)
+        def piped_atom(input), do: input |> binary_to_atom(:utf8)
+        def qualified(input), do: :os.cmd(input)
+      end
+      """)
+
+    lines = fn module ->
+      scan("basic")
+      |> findings_for(module)
+      |> Enum.filter(&String.ends_with?(&1["file"], path))
+      |> Enum.map(& &1["line"])
+      |> Enum.sort()
+    end
+
+    assert lines.("CI.OS") == [4, 5, 6, 7, 12]
+    assert lines.("Misc.BinToTerm") == [8, 9]
+    assert lines.("DOS.BinToAtom") == [10, 11]
+  end
+
+  test "Erlang sink names without a matching import stay unreported" do
+    path =
+      temp_fixture_file("basic", "lib/erlang_lookalikes.ex", """
+      defmodule ErlangLookalikes do
+        import Shell, only: [cmd: 1]
+        import :erlang, only: [binary_to_term: 2]
+        def unrelated(input), do: cmd(input)
+        def other_arity(input), do: binary_to_term(input)
+        def not_imported(input), do: binary_to_atom(input, :utf8)
+
+        def excluded(input) do
+          import :os, except: [cmd: 1]
+          cmd(input)
+        end
+      end
+
+      defmodule ErlangLocal do
+        def run(input), do: cmd(input)
+        defp cmd(input), do: input
+      end
+      """)
+
+    report = scan("basic")
+
+    for module <- ["CI.OS", "Misc.BinToTerm", "DOS.BinToAtom"] do
+      assert report
+             |> findings_for(module)
+             |> Enum.filter(&String.ends_with?(&1["file"], path)) == []
+    end
+  end
 end
