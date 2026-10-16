@@ -24,10 +24,20 @@ defmodule Sobelow.Parse.Calls do
     pipevars = get_pipefuns_vars(pipefuns, fun, idx)
 
     vars =
-      (get_erlang_aliased_funs_of_type(fun, type, module) -- pipefuns)
+      ((get_erlang_aliased_funs_of_type(fun, type, module) ++
+          get_erlang_imported_funs(fun, type, module)) -- pipefuns)
       |> get_funs_vars(idx, type, module)
 
     {vars ++ pipevars, params, {fun_name, line_no}}
+  end
+
+  defp get_erlang_imported_funs(fun, type, module) do
+    if Sobelow.Lexical.active?() do
+      get_funs_of_type(fun, type)
+      |> Enum.filter(&Sobelow.Lexical.erlang_imported?(&1, module))
+    else
+      []
+    end
   end
 
   defp get_funs(fun, type, module) do
@@ -95,8 +105,20 @@ defmodule Sobelow.Parse.Calls do
   def get_erlang_funs_from_pipe(fun, type, module) do
     get_pipe_funs(fun)
     |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
-    |> Enum.flat_map(&get_piped_erlang_aliased_funs_of_type(&1, type, module))
+    |> Enum.flat_map(fn node ->
+      get_piped_erlang_aliased_funs_of_type(node, type, module) ++
+        get_piped_erlang_imported_funs(node, type, module)
+    end)
     |> Enum.uniq()
+  end
+
+  defp get_piped_erlang_imported_funs(node, type, module) do
+    if Sobelow.Lexical.active?() do
+      get_piped_funs_of_type(node, type)
+      |> Enum.filter(&Sobelow.Lexical.erlang_imported?(&1, module, 1))
+    else
+      []
+    end
   end
 
   defp get_funs_vars(funs, idx, _type, _module) do

@@ -79,6 +79,16 @@ defmodule Sobelow.Lexical do
     end
   end
 
+  def erlang_imported?({name, _, args} = node, module, extra \\ 0) when is_atom(module) do
+    case resolution(node) do
+      %{imports: imports} ->
+        imported?(Map.get(imports, module), {name, length(args || []) + extra})
+
+      _ ->
+        false
+    end
+  end
+
   defp shadowed?(env, module, signature) do
     signature in Map.get(env, :local_functions, []) or
       excluded_import?(env.imports, module, signature) or
@@ -198,7 +208,9 @@ defmodule Sobelow.Lexical do
     if Enum.all?(signatures, fn
          {name, arity} -> is_atom(name) and is_integer(arity) and arity >= 0
          _ -> false
-       end), do: {kind, signatures}, else: {:unknown, []}
+       end),
+       do: {kind, signatures},
+       else: {:unknown, []}
   end
 
   defp selection(_kind, _signatures), do: {:unknown, []}
@@ -236,7 +248,7 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk({:import, _, [module | options]}, env, acc) do
-    module = module_name(module, env)
+    module = import_module(module, env)
     options = List.flatten(options)
     previous = Map.get(env.imports, module, {:except, []})
 
@@ -355,6 +367,12 @@ defmodule Sobelow.Lexical do
     do: Map.get(env.aliases, first, [first]) ++ rest
 
   defp module_name(_, _env), do: nil
+
+  # Erlang modules are bare atoms and need special handling
+  defp import_module(module, _env) when is_atom(module) and module not in [nil, true, false],
+    do: module
+
+  defp import_module(module, env), do: module_name(module, env)
 
   defp alias_entries({{:., _, [prefix, :{}]}, _, entries}, env) do
     case module_name(prefix, env) do
