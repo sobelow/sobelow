@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+  * Enhancements
+    * `DOS.ListToAtom` now also reports `:erlang.list_to_atom/1`, including
+      piped calls, matching how `DOS.BinToAtom` covers `:erlang.binary_to_atom`.
+
   * Bug fixes
     * Lockfile dependency advisories now read lockfiles in the format Mix
       writes. Mix's `"plug": {...}` keys parse as atoms, so the lookup never
