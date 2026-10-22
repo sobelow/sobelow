@@ -9,6 +9,9 @@ defmodule Sobelow.DOS do
   Read more about Denial of Service here:
   https://owasp.org/www-community/attacks/Denial_of_Service
 
+  The `ListToAtom` check also covers `:erlang.list_to_atom`, and
+  `BinToAtom` covers `:erlang.binary_to_atom`.
+
   If you wish to learn more about the specific vulnerabilities
   found within the Denial of Service category, you may run the
   following commands to find out more:
