@@ -2,7 +2,6 @@ defmodule SobelowTest.E2E.DOSListToAtomTest do
   use Sobelow.ScanCase, async: false
 
   @controller_path "lib/basic_web/controllers/atom_controller.ex"
-  @v0_16_skip "DOS.ListToAtom: Unsafe `List.to_atom`,#{@controller_path}:5,12B9B73\n"
 
   defp skips_path, do: Path.join(fixture_path("basic"), ".sobelow-skips")
 
@@ -40,10 +39,21 @@ defmodule SobelowTest.E2E.DOSListToAtomTest do
            ] = "basic" |> scan() |> atom_findings() |> Enum.sort_by(& &1["line"])
   end
 
-  test "a v0.16.0 skip for `List.to_atom` still applies after an Erlang call is added" do
-    File.write!(skips_path(), @v0_16_skip)
+  test "an existing `List.to_atom` skip still applies after an Erlang call is added" do
+    path =
+      temp_fixture_file("basic", @controller_path, """
+      defmodule BasicWeb.AtomController do
+        use BasicWeb, :controller
 
-    temp_fixture_file("basic", @controller_path, """
+        def show(conn, %{"a" => a, "b" => b}) do
+          render(conn, :show, x: List.to_atom(a))
+        end
+      end
+      """)
+
+    scan_io("basic", mark_skip_all: true)
+
+    File.write!(path, """
     defmodule BasicWeb.AtomController do
       use BasicWeb, :controller
 
