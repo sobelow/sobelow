@@ -234,28 +234,22 @@ defmodule Sobelow do
   def ignored_modules do
     ignored = Enum.map(get_env(:ignored) || [], &get_mod/1)
 
-    case get_env(:only) || [] do
+    case Enum.map(get_env(:only) || [], &get_mod/1) do
       [] -> ignored
-      only -> ignored ++ (all_modules() -- selected_modules(only))
+      only -> ignored ++ Enum.flat_map(@submodules, &unselected(&1, only))
     end
   end
 
-  defp all_modules do
-    @submodules ++ finding_modules()
-  end
+  # A selected category keeps all of its checks; a selected check also keeps its
+  # category, which would otherwise be dropped before its checks run.
+  defp unselected(category, only) do
+    checks = category.finding_modules()
 
-  # A category selects all of its checks; a check also keeps its category, which
-  # would otherwise be dropped before its checks run.
-  defp selected_modules(only) do
-    Enum.flat_map(only, fn name ->
-      mod = get_mod(name)
-
-      case Enum.find(@submodules, &(&1 == mod or mod in &1.finding_modules())) do
-        nil -> []
-        ^mod -> [mod | apply(mod, :finding_modules, [])]
-        category -> [category, mod]
-      end
-    end)
+    cond do
+      category in only -> []
+      Enum.any?(checks, &(&1 in only)) -> checks -- only
+      true -> [category | checks]
+    end
   end
 
   @doc false
