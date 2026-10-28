@@ -4,6 +4,60 @@ defmodule Sobelow.Parse.Calls do
   import Sobelow.Parse.Variables,
     only: [extract_opts: 2, get_fun_declaration: 1, get_pipe_val: 2, normalize_finding: 1]
 
+  # Return original finding nodes alongside effective arguments (including pipes).
+  # Unlike variable extraction, this also retains calls with entirely literal data.
+  # Every pipe is considered, including chains containing `do` blocks, which
+  # `get_pipe_funs/1` deliberately skips.
+  def calls_with_args(ast, specifications) do
+    calls =
+      Enum.flat_map(specifications, fn {module, name, arities} ->
+        calls =
+          if is_atom(module),
+            do: get_erlang_aliased_funs_of_type(ast, name, module),
+            else: get_funs(ast, name, module)
+
+        calls |> Enum.uniq() |> Enum.map(&{&1, name, arities})
+      end)
+
+    if calls == [], do: [], else: effective_calls(ast, calls)
+  end
+
+  # Pipes and captures are shared by every caller scanning the same function.
+  defp effective_calls(ast, calls) do
+    pipes =
+      Sobelow.FunctionAnalysis.fetch(ast, :pipe_args, fn ->
+        Map.new(get_funs_of_type(ast, :|>), fn {:|>, _, [value, call]} -> {call, value} end)
+      end)
+
+    captures =
+      Sobelow.FunctionAnalysis.fetch(ast, :original_captures, fn -> original_captures(ast) end)
+
+    Enum.flat_map(calls, fn {{_, _, args} = call, name, arities} ->
+      args =
+        case Map.fetch(pipes, call) do
+          {:ok, value} -> [value | args]
+          :error -> args
+        end
+
+      if is_list(args) and length(args) in arities,
+        do: [{Map.get(captures, call, call), name, args}],
+        else: []
+    end)
+  end
+
+  defp original_captures(ast) do
+    {_, captures} =
+      Macro.prewalk(ast, %{}, fn
+        {:&, _, [{:/, _, [{fun, meta, _}, arity]}]} = node, captures ->
+          {node, Map.put(captures, create_fun_cap(fun, meta, arity), node)}
+
+        node, captures ->
+          {node, captures}
+      end)
+
+    captures
+  end
+
   def get_fun_vars_and_meta(fun, idx, type, module) do
     {params, {fun_name, line_no}} = get_fun_declaration(fun)
 

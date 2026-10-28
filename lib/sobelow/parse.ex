@@ -56,6 +56,8 @@ defmodule Sobelow.Parse do
   defdelegate get_pipe_funs(ast), to: Calls
   defdelegate get_do_block(ast, acc), to: Calls
 
+  defdelegate calls_with_args(ast, specifications), to: Calls
+
   # Tainted arguments, parameters and source locations.
   defdelegate normalize_finding(finding), to: Variables
   defdelegate extract_opts(ast), to: Variables
