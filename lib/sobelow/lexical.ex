@@ -32,6 +32,15 @@ defmodule Sobelow.Lexical do
 
   def active?, do: is_map(Process.get(@context_key))
 
+  # Kernel sigils are implicitly imported unless a local definition or an
+  # explicit import selection establishes a different owner.
+  def kernel_call?({name, _, args} = node) when is_atom(name) and is_list(args) do
+    case resolution(node) do
+      %{imports: _} = env -> not shadowed?(env, [:Kernel], {name, length(args)})
+      _ -> true
+    end
+  end
+
   def index_inline(ast, sigil) do
     case resolution(sigil) do
       %{aliases: _} = env ->

@@ -1,6 +1,8 @@
 defmodule Sobelow.Parse.Variables do
   @moduledoc false
 
+  alias Sobelow.Parse.Calls
+
   @operators [
     :+,
     :-,
@@ -85,6 +87,14 @@ defmodule Sobelow.Parse.Variables do
         variables -> variables
       end
     end
+  end
+
+  def atom_sigil_findings(fun) do
+    for {:sigil_w, _, [{:<<>>, _, parts} = contents, [?a]]} = call <-
+          Calls.get_funs_of_type(fun, :sigil_w),
+        Enum.any?(parts, &(not is_binary(&1))),
+        Sobelow.Lexical.kernel_call?(call),
+        do: {call, dynamic_vars(contents)}
   end
 
   def extract_opts({:send_resp, _, nil}), do: []

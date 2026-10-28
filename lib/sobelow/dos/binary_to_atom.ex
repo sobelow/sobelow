@@ -7,6 +7,10 @@ defmodule Sobelow.DOS.BinToAtom do
   it may result in memory exhaustion. Prefer the `String.to_existing_atom`
   function for untrusted user input.
 
+  This also reports interpolated atom word sigils such as `~w(foo\#{bar})a`.
+  Literal word lists, uppercase `~W` sigils, and string/charlist word sigils
+  are omitted. Interpolated values are not evaluated or resolved.
+
   Atom interpolation checks can be ignored with the following command:
 
       $ mix sobelow -i DOS.BinToAtom
@@ -25,6 +29,9 @@ defmodule Sobelow.DOS.BinToAtom do
   end
 
   def parse_def(fun) do
-    Parse.get_erlang_fun_vars_and_meta(fun, 0, :binary_to_atom, :erlang)
+    {calls, params, declaration} =
+      Parse.get_erlang_fun_vars_and_meta(fun, 0, :binary_to_atom, :erlang)
+
+    {calls ++ Parse.atom_sigil_findings(fun), params, declaration}
   end
 end
