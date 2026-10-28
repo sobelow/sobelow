@@ -223,6 +223,7 @@ defmodule Sobelow do
       "Crypto" -> Sobelow.Crypto
       "Crypto.WeakHash" -> Sobelow.Crypto.WeakHash
       "Crypto.WeakCipher" -> Sobelow.Crypto.WeakCipher
+      "Crypto.WeakSignature" -> Sobelow.Crypto.WeakSignature
       "DOS" -> Sobelow.DOS
       "DOS.StringToAtom" -> Sobelow.DOS.StringToAtom
       "DOS.ListToAtom" -> Sobelow.DOS.ListToAtom
