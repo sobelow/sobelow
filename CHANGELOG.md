@@ -1,8 +1,24 @@
 # Changelog
 
-## Unreleased
+## v0.18.0
 
   * Enhancements
+    * Add the Crypto category with WeakHash and WeakCipher checks for literal
+      algorithm choices, including Erlang's streaming MD5 initializer.
+    * Add `Config.TLSVerify` to report disabled TLS certificate verification
+      in scanned source and production configuration, including both Hackney
+      insecure option forms. Server and unknown SSL roles receive low confidence.
+      TLS skip fingerprints include the original call AST.
+    * Add `DOS.Consult` for dynamic file selection in `:file.consult/1` and
+      `:file.path_consult/2`, which can create atoms from untrusted term files.
+    * `Misc.BinToTerm` reports Erlang calls with explicit `:safe` options at
+      medium confidence instead of high, changing `--exit high` behavior.
+      It also reports Plug's non-executable decoder without proven `:safe`.
+      Existing finding IDs, source locations, and skip fingerprints are preserved.
+    * Add RCE.File for dynamic file selection in Erlang eval and script APIs,
+      including search paths, pipes and captures.
+    * The new file-selection and cryptography checks resolve explicit Erlang
+      imports, including pipes, captures and import arity restrictions.
     * Add `DOS.ModuleConcat` for dynamic module-name atom creation through
       `Module.concat/1,2`, including aliases, imports, pipes and captures.
     * Extend `DOS.BinToAtom` to interpolated atom word sigils (`~w(...)a`).
@@ -34,24 +50,8 @@
       which still applies on top. Unknown names fail the run instead of
       scanning nothing. `.sobelow-conf` accepts `only:` and `--save-config`
       records it.
-    * Add the Crypto category with WeakHash and WeakCipher checks for literal
-      algorithm choices, including Erlang's streaming MD5 initializer.
     * Add `DOS.DecodeAtoms` for dynamic input decoded with atom-creating options
       in Jason, Poison, and YamlElixir string readers.
-    * Add `Config.TLSVerify` to report disabled TLS certificate verification
-      in scanned source and production configuration, including both Hackney
-      insecure option forms. Server and unknown SSL roles receive low confidence.
-      TLS skip fingerprints include the original call AST.
-    * Add `DOS.Consult` for dynamic file selection in `:file.consult/1` and
-      `:file.path_consult/2`, which can create atoms from untrusted term files.
-    * `Misc.BinToTerm` reports Erlang calls with explicit `:safe` options at
-      medium confidence instead of high, changing `--exit high` behavior.
-      It also reports Plug's non-executable decoder without proven `:safe`.
-      Existing finding IDs, source locations, and skip fingerprints are preserved.
-    * Add RCE.File for dynamic file selection in Erlang eval and script APIs,
-      including search paths, pipes and captures.
-    * The new file-selection and cryptography checks resolve explicit Erlang
-      imports, including pipes, captures and import arity restrictions.
 
   * Bug fixes
     * `XSS.SendResp` recognizes literal attachment headers on the same response
