@@ -58,6 +58,10 @@ defmodule Sobelow.Parse do
 
   defdelegate calls_with_args(ast, specifications), to: Calls
 
+  defdelegate tls_option_calls(ast, matcher, skipped_functions \\ MapSet.new()),
+    to: Sobelow.Parse.TLSOptions,
+    as: :calls
+
   defdelegate file_selection_findings(fun, specifications),
     to: Sobelow.Parse.FileSelection,
     as: :findings

@@ -11,6 +11,9 @@
       `Code.compile_string`, `compile_quoted`, `compile_file` and `require_file`.
     * Add `Crypto.WeakSignature` for explicit MD5 and SHA-1 digest selections
       in Erlang crypto and public-key signature APIs.
+    * Add `Config.WeakTLS` for explicit legacy SSL, TLS and DTLS protocol
+      selections, sharing source discovery, skips and TLS option parsing with
+      `Config.TLSVerify` without changing existing TLS finding fingerprints.
 
 ## v0.17.0
 

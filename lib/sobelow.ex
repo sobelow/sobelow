@@ -204,6 +204,7 @@ defmodule Sobelow do
       "Config.HSTS" -> Sobelow.Config.HSTS
       "Config.CSWH" -> Sobelow.Config.CSWH
       "Config.TLSVerify" -> Sobelow.Config.TLSVerify
+      "Config.WeakTLS" -> Sobelow.Config.WeakTLS
       "Vuln" -> Sobelow.Vuln
       "Vuln.CookieRCE" -> Sobelow.Vuln.CookieRCE
       # Keep the old rule name accepted for ignores and skips.
