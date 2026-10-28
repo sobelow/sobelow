@@ -92,6 +92,7 @@ defmodule Mix.Tasks.Sobelow do
   * Misc.FilePath
   * RCE.EEx
   * RCE.CodeModule
+  * RCE.File
   * CI
   * CI.System
   * CI.OS

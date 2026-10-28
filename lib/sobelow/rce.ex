@@ -12,13 +12,14 @@ defmodule Sobelow.RCE do
 
           $ mix sobelow -d RCE.EEx
           $ mix sobelow -d RCE.CodeModule
+          $ mix sobelow -d RCE.File
 
   Remote Code Execution checks of all types can be ignored with the
   following command:
 
       $ mix sobelow -i RCE
   """
-  @submodules [Sobelow.RCE.EEx, Sobelow.RCE.CodeModule]
+  @submodules [Sobelow.RCE.EEx, Sobelow.RCE.CodeModule, Sobelow.RCE.File]
   use Sobelow.FindingType
 
   def get_vulns(fun, meta_file, _web_root, skip_mods \\ []) do
