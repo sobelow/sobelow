@@ -182,8 +182,8 @@ defmodule Mix.Tasks.Sobelow do
     validate_scan_options!(opts)
 
     {verbose, diff, details, private, strict, skip, mark_skip_all, clear_skip, router, exit_on,
-     format, ignored, only, ignored_files, all_details, out, threshold,
-     version} = get_opts(opts, root)
+     format, ignored, only, ignored_files, all_details, out, threshold, version} =
+      get_opts(opts, root)
 
     set_env(:verbose, verbose)
 
