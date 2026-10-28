@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.17.0
 
   * Enhancements
     * `DOS.ListToAtom` now also reports `:erlang.list_to_atom/1`, including
