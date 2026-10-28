@@ -52,6 +52,41 @@ defmodule Sobelow.Parse.Variables do
 
   defp atom_to_string(atom) when is_atom(atom), do: Atom.to_string(atom)
 
+  # New checks can retain an unknown value even when legacy extraction has no
+  # variable label (for example a module attribute). Never rewrite finding ASTs.
+  def dynamic_vars(value) do
+    normalized =
+      Macro.prewalk(value, fn
+        {sigil, _, [{:<<>>, _, [literal]}, []]}
+        when sigil in [:sigil_s, :sigil_S, :sigil_c, :sigil_C] and is_binary(literal) ->
+          literal
+
+        {sigil, _, [{:<<>>, _, _} = contents, []]}
+        when sigil in [:sigil_s, :sigil_c] ->
+          contents
+
+        {{:., _, [List, :to_charlist]}, meta, [contents]} when is_list(contents) ->
+          {:<<>>, meta, contents}
+
+        node ->
+          node
+      end)
+
+    if Macro.quoted_literal?(normalized) do
+      []
+    else
+      variables =
+        if is_list(normalized),
+          do: Enum.flat_map(normalized, &dynamic_vars/1),
+          else: normalized |> parse_opts() |> List.wrap() |> List.flatten()
+
+      case Enum.uniq(variables) do
+        [] -> ["dynamic value"]
+        variables -> variables
+      end
+    end
+  end
+
   def extract_opts({:send_resp, _, nil}), do: []
   def extract_opts({:send_resp, _, opts}), do: parse_opts(List.last(opts))
 

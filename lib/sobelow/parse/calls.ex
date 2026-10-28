@@ -14,7 +14,7 @@ defmodule Sobelow.Parse.Calls do
         calls =
           if is_atom(module),
             do: erlang_calls_with_args(ast, name, module),
-            else: get_funs(ast, name, module)
+            else: elixir_calls_with_args(ast, name, module)
 
         calls |> Enum.uniq() |> Enum.map(&{&1, name, arities})
       end)
@@ -24,23 +24,38 @@ defmodule Sobelow.Parse.Calls do
 
   defp erlang_calls_with_args(ast, name, module) do
     qualified = get_erlang_aliased_funs_of_type(ast, name, module)
+    qualified ++ imported_calls(ast, name, &Sobelow.Lexical.erlang_imported?(&1, module, &2))
+  end
 
+  defp elixir_calls_with_args(ast, name, module) do
+    if Sobelow.Lexical.active?() and module != nil do
+      target =
+        case module do
+          {:required, target} -> target
+          target -> target
+        end
+
+      get_aliased_funs_of_type(ast, name, target) ++
+        imported_calls(ast, name, &Sobelow.Lexical.unqualified?(&1, target, &2))
+    else
+      legacy_funs(ast, name, module)
+    end
+  end
+
+  defp imported_calls(ast, name, resolver) do
     if Sobelow.Lexical.active?() do
       pipes = pipe_args(ast)
       captures = original_captures(ast)
 
-      imported =
-        ast
-        |> get_funs_of_type(name)
-        |> Enum.filter(fn call ->
-          extra = if Map.has_key?(pipes, call), do: 1, else: 0
-          extra = if zero_arity_capture?(Map.get(captures, call)), do: extra - 1, else: extra
-          Sobelow.Lexical.erlang_imported?(call, module, extra)
-        end)
-
-      qualified ++ imported
+      ast
+      |> get_funs_of_type(name)
+      |> Enum.filter(fn call ->
+        extra = if Map.has_key?(pipes, call), do: 1, else: 0
+        extra = if zero_arity_capture?(Map.get(captures, call)), do: extra - 1, else: extra
+        resolver.(call, extra)
+      end)
     else
-      qualified
+      []
     end
   end
 

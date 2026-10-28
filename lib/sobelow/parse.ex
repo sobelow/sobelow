@@ -66,6 +66,7 @@ defmodule Sobelow.Parse do
   defdelegate normalize_finding(finding), to: Variables
   defdelegate extract_opts(ast), to: Variables
   defdelegate extract_opts(ast, idx), to: Variables
+  defdelegate dynamic_vars(value), to: Variables
   defdelegate get_fun_declaration(ast), to: Variables
   defdelegate get_pipe_val(ast, pipe_fun), to: Variables
   defdelegate get_pipe_val(ast, acc, pipe_fun), to: Variables

@@ -228,6 +228,7 @@ defmodule Sobelow do
       "DOS.BinToAtom" -> Sobelow.DOS.BinToAtom
       "DOS.DecodeAtoms" -> Sobelow.DOS.DecodeAtoms
       "DOS.Consult" -> Sobelow.DOS.Consult
+      "DOS.ModuleConcat" -> Sobelow.DOS.ModuleConcat
       _ -> nil
     end
   end
