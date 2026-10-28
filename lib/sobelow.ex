@@ -222,6 +222,7 @@ defmodule Sobelow do
       "DOS.ListToAtom" -> Sobelow.DOS.ListToAtom
       "DOS.BinToAtom" -> Sobelow.DOS.BinToAtom
       "DOS.DecodeAtoms" -> Sobelow.DOS.DecodeAtoms
+      "DOS.Consult" -> Sobelow.DOS.Consult
       _ -> nil
     end
   end

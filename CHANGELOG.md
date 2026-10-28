@@ -14,6 +14,8 @@
       in Jason, Poison, and YamlElixir string readers.
     * Add `Config.TLSVerify` to report disabled TLS certificate verification
       in scanned source and production configuration.
+    * Add `DOS.Consult` for dynamic file selection in `:file.consult/1` and
+      `:file.path_consult/2`, which can create atoms from untrusted term files.
 
   * Bug fixes
     * `XSS.SendResp` recognizes literal attachment headers on the same response
