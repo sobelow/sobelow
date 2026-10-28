@@ -48,6 +48,28 @@ defmodule SobelowTest.E2E.DecodeAtomsTest do
     assert [] = scan("basic") |> findings_for("DOS.DecodeAtoms")
   end
 
+  test "dynamic sigils and piped captures retain decoder locations and confidence" do
+    temp_fixture_file("basic", "lib/basic_web/controllers/decode_controller.ex", ~S'''
+    defmodule BasicWeb.DecodeController do
+      use BasicWeb, :controller
+      import Poison, only: [decode!: 2]
+
+      def create(conn, key, inputs) do
+        Jason.decode!(~s({"#{key}": 1}), keys: :atoms)
+        Enum.map(inputs, &(&1 |> decode!(keys: :atoms)))
+      end
+    end
+    ''')
+
+    assert [
+             %{"line" => 6, "variable" => "key", "confidence" => "high"},
+             %{"line" => 7, "variable" => "&1", "confidence" => "medium"}
+           ] =
+             scan("basic")
+             |> findings_for("DOS.DecodeAtoms")
+             |> Enum.sort_by(& &1["line"])
+  end
+
   test "supports ignore, per-function skips, and SARIF registration" do
     temp_fixture_file("basic", "lib/decoder.ex", """
     defmodule Decoder do

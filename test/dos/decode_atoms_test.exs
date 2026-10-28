@@ -14,7 +14,9 @@ defmodule SobelowTest.DOS.DecodeAtomsTest do
         "YamlElixir.read_from_string!(input, atoms: true)",
         "YamlElixir.read_all_from_string(input, atoms: true)",
         "input |> YamlElixir.read_all_from_string!(atoms: true)",
-        "Enum.map(input, &Jason.decode!(&1, keys: :atoms))"
+        "Enum.map(input, &Jason.decode!(&1, keys: :atoms))",
+        "Enum.map(input, &(&1 |> Jason.decode!(keys: :atoms)))",
+        ~S'Jason.decode!(~s({"#{input}": 1}), keys: :atoms)'
       ] do
     test "detects #{call}" do
       ast = Code.string_to_quoted!("def decode(input), do: #{unquote(call)}")
@@ -37,6 +39,7 @@ defmodule SobelowTest.DOS.DecodeAtomsTest do
         "decode(input, keys: :atoms)",
         "Jason.encode(input, keys: :atoms)",
         "Jason.decode(\"{}\", keys: :atoms)",
+        ~S'Jason.decode!(~s({"literal": 1}), keys: :atoms)',
         "&Jason.decode/2"
       ] do
     test "does not report #{call}" do

@@ -74,6 +74,21 @@ defmodule Sobelow.CompatibilityTest do
     if @captured_parser, do: assert(results == expected["sarif_results"])
   end
 
+  test "current rules have unique IDs and complete CLI and lookup registrations" do
+    modules = Sobelow.finding_modules()
+    ids = Enum.map(modules, & &1.id())
+    assert length(ids) == length(Enum.uniq(ids))
+    {:docs_v1, _, _, _, %{"en" => help}, _, _} = Code.fetch_docs(Mix.Tasks.Sobelow)
+
+    for module <- modules do
+      name = module |> Module.split() |> tl() |> Enum.join(".")
+      assert Sobelow.get_mod(name) == module
+      assert module.rule().name == name
+      assert module.rule().id == module.id()
+      assert String.contains?(help, "* " <> name <> "\n")
+    end
+  end
+
   # Elixir changed both qualified-call and EEx column metadata. These columns
   # come from the unmodified release on each older parser, not the new scanner.
   # Keep every result field, including both columns, in the comparison.

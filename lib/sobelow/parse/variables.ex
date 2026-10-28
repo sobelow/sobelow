@@ -55,6 +55,8 @@ defmodule Sobelow.Parse.Variables do
   def extract_opts({:send_resp, _, nil}), do: []
   def extract_opts({:send_resp, _, opts}), do: parse_opts(List.last(opts))
 
+  def extract_opts({:&, _, [i]} = cap) when is_integer(i), do: parse_opts(cap)
+
   def extract_opts({{:., _, _}, _, _opts} = fun) do
     parse_opts(fun)
   end
@@ -119,7 +121,10 @@ defmodule Sobelow.Parse.Variables do
     Enum.map(opts, &parse_opts/1)
   end
 
-  # Sigils aren't ordinary function calls.
+  defp parse_opts({:sigil_s, _, [{:<<>>, _, _} = contents, _modifiers]}),
+    do: parse_opts(contents)
+
+  # Other sigils aren't ordinary function calls.
   defp parse_opts({fun, _, _}) when fun in [:sigil_s, :sigil_e], do: []
   defp parse_opts({fun, _, opts}) when is_list(opts), do: fun
   defp parse_opts(opts) when is_tuple(opts), do: parse_opts(Tuple.to_list(opts))
