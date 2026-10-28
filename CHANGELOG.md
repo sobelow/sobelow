@@ -7,6 +7,8 @@
       `Module.concat/1,2`, including aliases, imports, pipes and captures.
     * Extend `DOS.BinToAtom` to interpolated atom word sigils (`~w(...)a`).
       Existing atom-interpolation findings, IDs and fingerprints are preserved.
+    * Add `RCE.Compile` for dynamic source, ASTs and file selection in
+      `Code.compile_string`, `compile_quoted`, `compile_file` and `require_file`.
 
 ## v0.17.0
 

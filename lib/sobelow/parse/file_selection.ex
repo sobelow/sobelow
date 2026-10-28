@@ -6,9 +6,9 @@ defmodule Sobelow.Parse.FileSelection do
   @string_sigils [:sigil_c, :sigil_C, :sigil_s, :sigil_S]
 
   # Specifications are {function, arities, filename_index, directories_index}.
-  def findings(fun, specifications) do
+  def findings(fun, specifications, module \\ :file) do
     indexes = Map.new(specifications, fn {name, _, f, d} -> {name, {f, d}} end)
-    calls = Enum.map(specifications, fn {name, arities, _, _} -> {:file, name, arities} end)
+    calls = Enum.map(specifications, fn {name, arities, _, _} -> {module, name, arities} end)
 
     for {call, name, args} <- Parse.calls_with_args(fun, calls),
         variables = variables(args, Map.fetch!(indexes, name)),
