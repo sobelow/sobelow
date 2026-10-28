@@ -21,6 +21,7 @@ defmodule Sobelow.DOS do
           $ mix sobelow -d DOS.BinToAtom
           $ mix sobelow -d DOS.DecodeAtoms
           $ mix sobelow -d DOS.Consult
+          $ mix sobelow -d DOS.ModuleConcat
 
   Denial of Service checks of all types can be ignored with the
   following command:
@@ -32,7 +33,8 @@ defmodule Sobelow.DOS do
     Sobelow.DOS.ListToAtom,
     Sobelow.DOS.BinToAtom,
     Sobelow.DOS.DecodeAtoms,
-    Sobelow.DOS.Consult
+    Sobelow.DOS.Consult,
+    Sobelow.DOS.ModuleConcat
   ]
   use Sobelow.FindingType
 
