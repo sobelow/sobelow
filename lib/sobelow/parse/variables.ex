@@ -59,6 +59,11 @@ defmodule Sobelow.Parse.Variables do
   def dynamic_vars(value) do
     normalized =
       Macro.prewalk(value, fn
+        # Older Macro.quoted_literal?/1 versions do not classify __MODULE__
+        # as a literal. Its value is fixed at compilation on every release.
+        {:__MODULE__, _, context} when is_atom(context) or context == [] ->
+          :__sobelow_current_module__
+
         {sigil, _, [{:<<>>, _, [literal]}, []]}
         when sigil in [:sigil_s, :sigil_S, :sigil_c, :sigil_C] and is_binary(literal) ->
           literal

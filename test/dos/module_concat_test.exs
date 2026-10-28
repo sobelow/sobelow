@@ -26,6 +26,7 @@ defmodule SobelowTest.DOS.ModuleConcatTest do
         "Module.concat([App, Other])",
         "Module.concat(App, Other)",
         "Module.concat([__MODULE__, \"Known\"])",
+        "Module.concat([__MODULE__.Known, \"Nested\"])",
         ~S'Module.concat(App, ~s"Known")',
         ~S'Module.concat(App, ~S"Known")',
         "Module.safe_concat(App, name)",
@@ -43,5 +44,12 @@ defmodule SobelowTest.DOS.ModuleConcatTest do
   test "literal list members do not appear as tainted variable labels" do
     ast = Code.string_to_quoted!("def run(name), do: Module.concat([App, name])")
     assert {[{_, [:name]}], [:name], _} = ModuleConcat.parse_def(ast)
+  end
+
+  test "the current module is literal even when a neighboring name is dynamic" do
+    for call <- ["Module.concat([__MODULE__, name])", "Module.concat(__MODULE__, name)"] do
+      ast = Code.string_to_quoted!("def run(name), do: #{call}")
+      assert {[{_, [:name]}], [:name], _} = ModuleConcat.parse_def(ast)
+    end
   end
 end
