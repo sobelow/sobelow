@@ -10,7 +10,9 @@ defmodule Sobelow.Config.WeakTLS do
   Scans the same source files and production configuration as
   `Config.TLSVerify`, including nested TLS option lists and Gun maps.
   Development/test config files are excluded. Source files are scanned
-  regardless of runtime environment. Dynamic versions, runtime overrides,
+  regardless of runtime environment. Explicit SSL imports retain their scope.
+  Literal weak entries in cons lists and concatenations are retained even
+  when other list elements are computed. Dynamic versions, runtime overrides,
   cipher suites and protocol negotiation are not resolved.
 
   https://www.rfc-editor.org/rfc/rfc8996.html
@@ -35,7 +37,22 @@ defmodule Sobelow.Config.WeakTLS do
   end
 
   defp weak_versions?({:versions, versions}, %{tls?: true}) when is_list(versions),
-    do: Enum.any?(versions, &(&1 in @legacy))
+    do: legacy_version?(versions)
+
+  defp weak_versions?({:versions, {:++, _, _} = versions}, %{tls?: true}),
+    do: legacy_version?(versions)
 
   defp weak_versions?(_, _), do: false
+
+  defp legacy_version?(versions) when is_list(versions),
+    do: Enum.any?(versions, &legacy_version?/1)
+
+  # A literal head is present regardless of the computed tail's contents.
+  defp legacy_version?({:|, _, [head, tail]}),
+    do: legacy_version?(head) or legacy_version?(tail)
+
+  defp legacy_version?({:++, _, [left, right]}),
+    do: legacy_version?(left) or legacy_version?(right)
+
+  defp legacy_version?(version), do: version in @legacy
 end

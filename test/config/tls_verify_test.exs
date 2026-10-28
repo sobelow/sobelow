@@ -6,6 +6,9 @@ defmodule SobelowTest.Config.TLSVerifyTest do
   for call <- [
         ~S'HTTPoison.get(url, [], ssl: [verify: :verify_none])',
         ~S':ssl.connect(host, port, [verify: :verify_none])',
+        ~S':ssl.connect(host, port, [{:verify, :verify_none} | options])',
+        ~S':ssl.connect(host, port, [verify: :verify_none] ++ options)',
+        ~S'HTTPoison.get(url, [], ssl: [verify: :verify_none] ++ options)',
         ~S':hackney.get(url, [], <<>>, [:insecure])',
         ~S':hackney.get(url, [], <<>>, insecure: true)',
         ~S'HTTPoison.get(url, [], hackney: [insecure: true])',

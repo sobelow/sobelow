@@ -10,13 +10,25 @@ defmodule Sobelow.Lexical do
   }
 
   def functions(ast) do
+    analyze(ast).functions
+  end
+
+  def file_calls(ast) do
+    analysis = analyze(ast)
+
+    Enum.reduce(analysis.functions, analysis.calls, fn {_fun, calls}, acc ->
+      Map.merge(acc, calls)
+    end)
+  end
+
+  defp analyze(ast) do
     {_env, acc} =
       walk(ast, %{aliases: %{}, imports: %{}, repo?: false, local_functions: []}, %{
         functions: %{},
         calls: %{}
       })
 
-    acc.functions
+    acc
   end
 
   def with_context(context, fun) do
@@ -40,6 +52,8 @@ defmodule Sobelow.Lexical do
       _ -> true
     end
   end
+
+  def kernel_call?(_), do: false
 
   def index_inline(ast, sigil) do
     case resolution(sigil) do
@@ -280,6 +294,20 @@ defmodule Sobelow.Lexical do
     # The string's AST is parsed later, after source locations and assigns have
     # been normalized. Retain this sigil's scope for indexing those new nodes.
     {env, put_call(acc, node, env)}
+  end
+
+  # A pipe into an unparenthesized bare function has variable-shaped AST.
+  # Index it as a call in this scope without rewriting the reported node.
+  defp walk({:|>, _, [value, {name, _, nil} = call]}, env, acc) when is_atom(name) do
+    {_inner, acc} = walk(value, env, acc)
+
+    resolution = %{
+      imports: env.imports,
+      repo?: env.repo?,
+      local_functions: Map.get(env, :local_functions, [])
+    }
+
+    {env, put_call(acc, call, resolution)}
   end
 
   defp walk({{:., _, [module, _]}, _, args} = node, env, acc) do

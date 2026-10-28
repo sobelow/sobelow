@@ -80,7 +80,7 @@ defmodule Sobelow.Parse.Calls do
 
       args =
         case Map.fetch(pipes, call) do
-          {:ok, value} -> [value | args]
+          {:ok, value} -> [value | args || []]
           :error -> args
         end
 

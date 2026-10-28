@@ -15,6 +15,15 @@
       selections, sharing source discovery, skips and TLS option parsing with
       `Config.TLSVerify` without changing existing TLS finding fingerprints.
 
+  * Bug fixes
+    * Retain imported sinks in pipes without parentheses and parameter labels
+      inside constructed ASTs. Qualified Kernel atom-word sigils are detected.
+      These patterns can produce new findings; existing locations and skip
+      fingerprints are unchanged.
+    * TLS checks resolve explicit SSL and Hackney imports within their scope,
+      retaining low confidence for imported SSL server calls. Literal TLS
+      options and weak versions in cons lists and concatenations are retained.
+
 ## v0.17.0
 
   * Enhancements
