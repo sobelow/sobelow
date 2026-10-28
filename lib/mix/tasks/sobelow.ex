@@ -76,6 +76,7 @@ defmodule Mix.Tasks.Sobelow do
   * Config.Secrets
   * Config.CSWH
   * Config.TLSVerify
+  * Config.WeakTLS
   * Vuln
   * Vuln.CookieRCE
   * Vuln.HeaderInject
