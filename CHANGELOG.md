@@ -16,6 +16,10 @@
       in scanned source and production configuration.
     * Add `DOS.Consult` for dynamic file selection in `:file.consult/1` and
       `:file.path_consult/2`, which can create atoms from untrusted term files.
+    * `Misc.BinToTerm` reports Erlang calls with explicit `:safe` options at
+      medium confidence instead of high, changing `--exit high` behavior.
+      It also reports Plug's non-executable decoder without proven `:safe`.
+      Existing finding IDs, source locations, and skip fingerprints are preserved.
 
   * Bug fixes
     * `XSS.SendResp` recognizes literal attachment headers on the same response
