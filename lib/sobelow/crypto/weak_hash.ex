@@ -28,6 +28,7 @@ defmodule Sobelow.Crypto.WeakHash do
     {:crypto, :hash, [2]},
     {:crypto, :hash_init, [1]},
     {:erlang, :md5, [1]},
+    {:erlang, :md5_init, [0]},
     {:crypto, :mac, [4]},
     {:crypto, :macN, [5]},
     {:crypto, :mac_init, [3]},
@@ -50,6 +51,7 @@ defmodule Sobelow.Crypto.WeakHash do
   end
 
   defp classify(:md5, [data], legacy), do: classify(:hash, [:md5, data], legacy)
+  defp classify(:md5_init, [], legacy), do: {:md5, legacy}
 
   defp classify(name, [algorithm | _], legacy)
        when name in [:hash, :hash_init] and algorithm in @legacy,

@@ -27,12 +27,14 @@ defmodule Sobelow.Parse.Calls do
 
     if Sobelow.Lexical.active?() do
       pipes = pipe_args(ast)
+      captures = original_captures(ast)
 
       imported =
         ast
         |> get_funs_of_type(name)
         |> Enum.filter(fn call ->
           extra = if Map.has_key?(pipes, call), do: 1, else: 0
+          extra = if zero_arity_capture?(Map.get(captures, call)), do: extra - 1, else: extra
           Sobelow.Lexical.erlang_imported?(call, module, extra)
         end)
 
@@ -52,10 +54,15 @@ defmodule Sobelow.Parse.Calls do
   defp effective_calls(ast, calls) do
     pipes = pipe_args(ast)
 
-    captures =
-      Sobelow.FunctionAnalysis.fetch(ast, :original_captures, fn -> original_captures(ast) end)
+    captures = original_captures(ast)
 
     Enum.flat_map(calls, fn {{_, _, args} = call, name, arities} ->
+      original = Map.get(captures, call, call)
+
+      # The legacy capture helper synthesizes one placeholder even for /0.
+      # Effective arguments must retain the declared arity for new callers.
+      args = if zero_arity_capture?(original), do: [], else: args
+
       args =
         case Map.fetch(pipes, call) do
           {:ok, value} -> [value | args]
@@ -63,23 +70,27 @@ defmodule Sobelow.Parse.Calls do
         end
 
       if is_list(args) and length(args) in arities,
-        do: [{Map.get(captures, call, call), name, args}],
+        do: [{original, name, args}],
         else: []
     end)
   end
 
   defp original_captures(ast) do
-    {_, captures} =
-      Macro.prewalk(ast, %{}, fn
-        {:&, _, [{:/, _, [{fun, meta, _}, arity]}]} = node, captures ->
-          {node, Map.put(captures, create_fun_cap(fun, meta, arity), node)}
+    Sobelow.FunctionAnalysis.fetch(ast, :original_captures, fn ->
+      {_, captures} =
+        Macro.prewalk(ast, %{}, fn
+          {:&, _, [{:/, _, [{fun, meta, _}, arity]}]} = node, captures ->
+            {node, Map.put(captures, create_fun_cap(fun, meta, arity), node)}
 
-        node, captures ->
-          {node, captures}
-      end)
+          node, captures ->
+            {node, captures}
+        end)
 
-    captures
+      captures
+    end)
   end
+
+  defp zero_arity_capture?(node), do: match?({:&, _, [{:/, _, [_, 0]}]}, node)
 
   def get_fun_vars_and_meta(fun, idx, type, module) do
     {params, {fun_name, line_no}} = get_fun_declaration(fun)

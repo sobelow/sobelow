@@ -11,7 +11,7 @@
       scanning nothing. `.sobelow-conf` accepts `only:` and `--save-config`
       records it.
     * Add the Crypto category with WeakHash and WeakCipher checks for literal
-      algorithm choices.
+      algorithm choices, including Erlang's streaming MD5 initializer.
     * Add `DOS.DecodeAtoms` for dynamic input decoded with atom-creating options
       in Jason, Poison, and YamlElixir string readers.
     * Add `Config.TLSVerify` to report disabled TLS certificate verification

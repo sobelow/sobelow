@@ -47,6 +47,7 @@ defmodule SobelowTest.RCE.FileTest do
         ":other.script(file)",
         "script(file)",
         ":file.script()",
+        "&:file.script/0",
         ":file.script(file, bindings, extra)",
         ":file.path_eval(paths, file, bindings)",
         "&:file.path_eval/3",
