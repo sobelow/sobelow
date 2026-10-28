@@ -5,6 +5,8 @@
   * Enhancements
     * Add `DOS.ModuleConcat` for dynamic module-name atom creation through
       `Module.concat/1,2`, including aliases, imports, pipes and captures.
+    * Extend `DOS.BinToAtom` to interpolated atom word sigils (`~w(...)a`).
+      Existing atom-interpolation findings, IDs and fingerprints are preserved.
 
 ## v0.17.0
 
