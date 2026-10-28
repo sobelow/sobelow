@@ -14,6 +14,11 @@
       in Jason, Poison, and YamlElixir string readers.
 
   * Bug fixes
+    * `XSS.SendResp` recognizes literal attachment headers on the same response
+      connection for PDF and XML downloads. Uncertain or overridden headers,
+      HTML, and SVG continue to report. Header state no longer leaks between
+      conditional branches; this can expose previously missed findings.
+      Existing finding locations and skip fingerprints remain unchanged. (#55)
     * Checks now retain tainted variables in interpolated string sigils and
       piped capture arguments such as &1. These patterns can produce new
       findings; existing call locations and skip fingerprints are unchanged.

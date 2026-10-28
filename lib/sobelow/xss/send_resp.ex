@@ -9,7 +9,10 @@ defmodule Sobelow.XSS.SendResp do
   Both `put_resp_content_type` and `put_resp_header` with the literal
   `"content-type"` header are recognized. HTML and SVG retain their confidence;
   dynamic, malformed, and other scriptable document types remain low-confidence
-  findings.
+  findings. PDF and XML document findings are suppressed when the same connection
+  has a recognized literal `content-disposition: attachment` header before the
+  response. HTML and SVG still report. Dynamic, malformed, duplicate-parameter,
+  and unsupported extended disposition values do not prove a download context.
 
   SendResp checks can be ignored with the following command:
 
@@ -21,7 +24,9 @@ defmodule Sobelow.XSS.SendResp do
   @media_type ~r/\A[!#$%&'*+.^_`|~0-9A-Za-z-]+\/[!#$%&'*+.^_`|~0-9A-Za-z-]+\z/
   @http_whitespace ~r/\A[ \t\r\n]+|[ \t\r\n]+\z/
   @unknown_media_types ["unknown/unknown", "application/unknown", "*/*"]
+  @unknown_headers {:unknown, :unknown}
 
+  alias Sobelow.XSS.ContentDisposition
   use Sobelow.Finding
 
   def run(fun, meta_file) do
@@ -57,17 +62,19 @@ defmodule Sobelow.XSS.SendResp do
 
   @doc false
   def set_confidence(%Finding{} = finding) do
+    {type, disposition} = response_headers(finding)
+
     confidence =
-      case response_content_type(finding) do
+      case type do
         :unknown -> finding.confidence
-        type when is_binary(type) -> literal_confidence(type, finding.confidence)
+        type when is_binary(type) -> literal_confidence(type, finding.confidence, disposition)
         _ -> :low
       end
 
     %{finding | confidence: confidence}
   end
 
-  defp response_content_type(%Finding{fun_source: {_, _, [_head, [do: body]]}} = finding) do
+  defp response_headers(%Finding{fun_source: {_, _, [_head, [do: body]]}} = finding) do
     statements =
       case body do
         {:__block__, _, list} -> list
@@ -79,18 +86,18 @@ defmodule Sobelow.XSS.SendResp do
         conn = response_connection(statement, finding.vuln_source)
 
         types = types_before(statement, finding.vuln_source, types)
-        {:halt, connection_content_type(conn, types)}
+        {:halt, connection_headers(conn, types)}
       else
         {:cont, track_assignment(statement, types)}
       end
     end)
     |> case do
-      types when is_map(types) -> :unknown
+      types when is_map(types) -> @unknown_headers
       type -> type
     end
   end
 
-  defp response_content_type(_), do: :unknown
+  defp response_headers(_), do: @unknown_headers
 
   defp contains_call?(ast, call) do
     {_, found?} = Macro.prewalk(ast, false, fn node, found? -> {node, found? or node == call} end)
@@ -144,7 +151,7 @@ defmodule Sobelow.XSS.SendResp do
 
   defp track_assignment({:=, _, [{name, _, nil}, value]}, types) when is_atom(name) do
     types = track_assignment(value, types)
-    Map.put(types, name, connection_content_type(value, types))
+    Map.put(types, name, connection_headers(value, types))
   end
 
   defp track_assignment({kind, _, [pattern, value]}, types) when kind in [:=, :<-],
@@ -163,6 +170,10 @@ defmodule Sobelow.XSS.SendResp do
   defp track_assignment(nodes, types) when is_list(nodes),
     do: Enum.reduce(nodes, types, &track_assignment/2)
 
+  defp track_assignment({key, _value}, types)
+       when key in [:do, :else, :after, :rescue, :catch],
+       do: types
+
   defp track_assignment({_key, value}, types), do: track_assignment(value, types)
   defp track_assignment(_, types), do: types
 
@@ -178,37 +189,50 @@ defmodule Sobelow.XSS.SendResp do
     names
   end
 
-  defp connection_content_type({:|>, _, [conn, setter]}, types) do
+  defp connection_headers({:|>, _, [conn, setter]}, types) do
     if setter?(setter, 1) do
       # Supply the piped connection only for argument selection. Findings keep
       # the original call AST and therefore their existing locations and hashes.
       {name, meta, args} = setter
-      setter_content_type({name, meta, [conn | args]}, types)
+      setter_headers({name, meta, [conn | args]}, types)
     else
       # Another operation after setting the header may alter the connection.
       # Keep the finding when that operation is not understood.
-      :unknown
+      @unknown_headers
     end
   end
 
-  defp connection_content_type({name, _, nil}, types) when is_atom(name) do
-    Map.get(types, name, :unknown)
+  defp connection_headers({name, _, nil}, types) when is_atom(name) do
+    Map.get(types, name, @unknown_headers)
   end
 
-  defp connection_content_type(setter, types) do
-    if setter?(setter), do: setter_content_type(setter, types), else: :unknown
+  defp connection_headers(setter, types) do
+    if setter?(setter), do: setter_headers(setter, types), else: @unknown_headers
   end
 
-  defp setter_content_type({name, _, [conn, header, _value]} = setter, types)
-       when is_binary(header) do
+  defp setter_headers({name, _, [conn | args]} = setter, types) do
+    {_type, disposition} = headers = connection_headers(conn, types)
     header_setter? = name == :put_resp_header or match?({:., _, [_, :put_resp_header]}, name)
 
-    if header_setter? and String.downcase(header) != "content-type",
-      do: connection_content_type(conn, types),
-      else: get_content_type(setter)
+    if header_setter?,
+      do: update_header(headers, args),
+      else: {get_content_type(setter), disposition}
   end
 
-  defp setter_content_type(setter, _types), do: get_content_type(setter)
+  defp setter_headers(_setter, _types), do: @unknown_headers
+
+  defp update_header({_type, disposition}, ["content-type", value]), do: {value, disposition}
+  defp update_header({type, _disposition}, ["content-disposition", value]), do: {type, value}
+
+  defp update_header({type, disposition} = headers, [header, _value]) when is_binary(header) do
+    case String.downcase(header) do
+      "content-type" -> {:unknown, disposition}
+      "content-disposition" -> {type, :unknown}
+      _ -> headers
+    end
+  end
+
+  defp update_header(_headers, _args), do: @unknown_headers
 
   defp setter?(setter, extra \\ 0)
 
@@ -225,7 +249,7 @@ defmodule Sobelow.XSS.SendResp do
 
   defp setter?(_, _extra), do: false
 
-  defp literal_confidence(content_type, confidence) do
+  defp literal_confidence(content_type, confidence, disposition) do
     original =
       content_type
       |> String.split(";", parts: 2)
@@ -246,7 +270,7 @@ defmodule Sobelow.XSS.SendResp do
 
       String.ends_with?(media_type, "+xml") or
           media_type in ["text/xml", "application/xml", "application/pdf"] ->
-        :low
+        if ContentDisposition.attachment?(disposition), do: nil, else: :low
 
       true ->
         nil
