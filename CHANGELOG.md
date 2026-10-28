@@ -17,6 +17,9 @@
     * Checks now retain tainted variables in interpolated string sigils and
       piped capture arguments such as &1. These patterns can produce new
       findings; existing call locations and skip fingerprints are unchanged.
+    * Unrelated application-level config no longer causes Config.HTTPS to
+      report a secure endpoint as missing HTTPS. Explicit app-level transport
+      settings and separate endpoint checks remain supported. (#56)
     * Lockfile dependency advisories now read lockfiles in the format Mix
       writes. Mix's `"plug": {...}` keys parse as atoms, so the lookup never
       matched and every advisory check passed silently whenever `deps/` was

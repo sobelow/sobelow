@@ -206,8 +206,19 @@ defmodule Sobelow.Config do
   def effective_app_configs(filepath) do
     ast = Parse.ast(filepath)
 
-    ast |> effective_configs(%{}, false) |> Map.values()
+    ast
+    |> effective_configs(%{}, false)
+    |> Enum.reject(&unrelated_app_config?/1)
+    |> Enum.map(fn {_group, options} -> options end)
   end
+
+  # Retain the historical app-level transport form, but unrelated app settings
+  # must not become a separate endpoint with HTTPS disabled.
+  defp unrelated_app_config?({{_app, nil}, options}) do
+    not (Keyword.has_key?(options, :https) or Keyword.has_key?(options, :force_ssl))
+  end
+
+  defp unrelated_app_config?(_group), do: false
 
   @doc false
   def effective_endpoint_config(key, filepath, endpoint_module) do
