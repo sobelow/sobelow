@@ -64,4 +64,25 @@ defmodule SobelowTest.E2E.CryptoTest do
       assert Enum.any?(run["tool"]["driver"]["rules"], &(&1["id"] == id))
     end
   end
+
+  test "reports streaming Erlang MD5 once at the initializer" do
+    temp_fixture_file("basic", "lib/md5_stream.ex", """
+    defmodule MD5Stream do
+      import :erlang, only: [md5_init: 0]
+      def digest(data) do
+        context = :erlang.md5_init()
+        context = :erlang.md5_update(context, data)
+        :erlang.md5_final(context)
+      end
+      def imported(), do: md5_init()
+      def captured(), do: &:erlang.md5_init/0
+      def imported_capture(), do: &md5_init/0
+    end
+    """)
+
+    found = scan("basic", only: ["Crypto.WeakHash"]) |> findings_for("Crypto.WeakHash")
+    stream = Enum.filter(found, &String.ends_with?(&1["file"], "md5_stream.ex"))
+    assert Enum.sort(Enum.map(stream, & &1["line"])) == [4, 8, 9, 10]
+    assert Enum.all?(stream, &(&1["confidence"] == "low"))
+  end
 end

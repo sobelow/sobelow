@@ -11,6 +11,8 @@ defmodule SobelowTest.CryptoTest do
         {":crypto.hash(:ripemd160, data)", :low},
         {":md5 |> :crypto.hash(data)", :low},
         {":erlang.md5(data)", :low},
+        {":erlang.md5_init()", :low},
+        {"&:erlang.md5_init/0", :low},
         {"&:erlang.md5/1", :low},
         {"&:crypto.hash(:md5, &1)", :low},
         {":crypto.hash(:md5, user.password_hash)", :low},
