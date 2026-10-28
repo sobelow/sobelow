@@ -22,6 +22,8 @@
       medium confidence instead of high, changing `--exit high` behavior.
       It also reports Plug's non-executable decoder without proven `:safe`.
       Existing finding IDs, source locations, and skip fingerprints are preserved.
+    * Add RCE.File for dynamic file selection in Erlang eval and script APIs,
+      including search paths, pipes and captures.
 
   * Bug fixes
     * `XSS.SendResp` recognizes literal attachment headers on the same response

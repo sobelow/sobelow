@@ -192,6 +192,7 @@ defmodule Sobelow do
       "RCE" -> Sobelow.RCE
       "RCE.EEx" -> Sobelow.RCE.EEx
       "RCE.CodeModule" -> Sobelow.RCE.CodeModule
+      "RCE.File" -> Sobelow.RCE.File
       "Config" -> Sobelow.Config
       "Config.CSRF" -> Sobelow.Config.CSRF
       "Config.CSRFRoute" -> Sobelow.Config.CSRFRoute

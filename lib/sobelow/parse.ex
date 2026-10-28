@@ -58,6 +58,10 @@ defmodule Sobelow.Parse do
 
   defdelegate calls_with_args(ast, specifications), to: Calls
 
+  defdelegate file_selection_findings(fun, specifications),
+    to: Sobelow.Parse.FileSelection,
+    as: :findings
+
   # Tainted arguments, parameters and source locations.
   defdelegate normalize_finding(finding), to: Variables
   defdelegate extract_opts(ast), to: Variables
