@@ -9,6 +9,8 @@
       Existing atom-interpolation findings, IDs and fingerprints are preserved.
     * Add `RCE.Compile` for dynamic source, ASTs and file selection in
       `Code.compile_string`, `compile_quoted`, `compile_file` and `require_file`.
+    * Add `Crypto.WeakSignature` for explicit MD5 and SHA-1 digest selections
+      in Erlang crypto and public-key signature APIs.
 
 ## v0.17.0
 

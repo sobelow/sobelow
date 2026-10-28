@@ -38,7 +38,7 @@ defmodule SobelowTest.E2E.CryptoTest do
     assert Sobelow.get_mod("Crypto") == Sobelow.Crypto
 
     assert Enum.map(Sobelow.Crypto.finding_modules(), & &1.id()) ==
-             ["SBLW038", "SBLW039"]
+             ["SBLW038", "SBLW039", "SBLW044"]
 
     ids = Enum.map(Sobelow.finding_modules(), & &1.id())
     assert length(ids) == length(Enum.uniq(ids))

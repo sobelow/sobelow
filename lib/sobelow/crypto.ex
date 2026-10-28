@@ -7,12 +7,13 @@ defmodule Sobelow.Crypto do
 
       $ mix sobelow -d Crypto.WeakHash
       $ mix sobelow -d Crypto.WeakCipher
+      $ mix sobelow -d Crypto.WeakSignature
 
   Ignore the category with:
 
       $ mix sobelow -i Crypto
   """
-  @submodules [Sobelow.Crypto.WeakHash, Sobelow.Crypto.WeakCipher]
+  @submodules [Sobelow.Crypto.WeakHash, Sobelow.Crypto.WeakCipher, Sobelow.Crypto.WeakSignature]
   use Sobelow.FindingType
 
   def get_vulns(fun, meta_file, _web_root, skip_mods \\ []) do

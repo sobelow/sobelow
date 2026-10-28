@@ -100,6 +100,7 @@ defmodule Mix.Tasks.Sobelow do
   * Crypto
   * Crypto.WeakHash
   * Crypto.WeakCipher
+  * Crypto.WeakSignature
   * DOS
   * DOS.StringToAtom
   * DOS.ListToAtom
