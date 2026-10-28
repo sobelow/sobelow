@@ -8,6 +8,7 @@ defmodule Sobelow.DOS.BinToAtom do
   function for untrusted user input.
 
   This also reports interpolated atom word sigils such as `~w(foo\#{bar})a`.
+  Qualified `Kernel.sigil_w` calls and aliases have the same atom semantics.
   Literal word lists, uppercase `~W` sigils, and string/charlist word sigils
   are omitted. Interpolated values are not evaluated or resolved.
 

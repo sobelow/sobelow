@@ -82,10 +82,7 @@ defmodule Sobelow.Parse.Variables do
     if Macro.quoted_literal?(normalized) do
       []
     else
-      variables =
-        if is_list(normalized),
-          do: Enum.flat_map(normalized, &dynamic_vars/1),
-          else: normalized |> parse_opts() |> List.wrap() |> List.flatten()
+      variables = dynamic_labels(normalized)
 
       case Enum.uniq(variables) do
         [] -> ["dynamic value"]
@@ -94,11 +91,23 @@ defmodule Sobelow.Parse.Variables do
     end
   end
 
+  defp dynamic_labels(values) when is_list(values), do: Enum.flat_map(values, &dynamic_vars/1)
+
+  defp dynamic_labels({:{}, _, values}), do: dynamic_labels(values)
+  defp dynamic_labels({:%{}, _, values}), do: dynamic_labels(values)
+  defp dynamic_labels({key, value}), do: dynamic_labels([key, value])
+  defp dynamic_labels(value), do: value |> parse_opts() |> List.wrap() |> List.flatten()
+
   def atom_sigil_findings(fun) do
-    for {:sigil_w, _, [{:<<>>, _, parts} = contents, [?a]]} = call <-
-          Calls.get_funs_of_type(fun, :sigil_w),
+    bare =
+      fun
+      |> Calls.get_funs_of_type(:sigil_w)
+      |> Enum.filter(&Sobelow.Lexical.kernel_call?/1)
+
+    qualified = Calls.get_aliased_funs_of_type(fun, :sigil_w, [:Kernel])
+
+    for {_, _, [{:<<>>, _, parts} = contents, [?a]]} = call <- Enum.uniq(bare ++ qualified),
         Enum.any?(parts, &(not is_binary(&1))),
-        Sobelow.Lexical.kernel_call?(call),
         do: {call, dynamic_vars(contents)}
   end
 

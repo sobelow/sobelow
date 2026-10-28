@@ -13,6 +13,7 @@ defmodule Sobelow.Config.TLSVerify do
   Sobelow's config checks. Source files are scanned regardless of the
   runtime environment; review guards around development-only calls.
   Dynamically constructed options are not resolved.
+  Explicit Erlang SSL and Hackney imports are resolved within their scope.
 
   Server-side `:ssl` calls and calls whose client/server role is unknown
   receive low confidence: disabling client-certificate authentication is
@@ -51,5 +52,10 @@ defmodule Sobelow.Config.TLSVerify do
   defp insecure_option?(_, _), do: false
 
   defp confidence({{:., _, [:ssl, name]}, _, _}) when name != :connect, do: :low
+
+  defp confidence({name, _, _} = call) when is_atom(name) and name != :connect do
+    if Sobelow.Lexical.erlang_imported?(call, :ssl), do: :low, else: :high
+  end
+
   defp confidence(_), do: :high
 end
