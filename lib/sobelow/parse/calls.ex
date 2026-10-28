@@ -13,7 +13,7 @@ defmodule Sobelow.Parse.Calls do
       Enum.flat_map(specifications, fn {module, name, arities} ->
         calls =
           if is_atom(module),
-            do: get_erlang_aliased_funs_of_type(ast, name, module),
+            do: erlang_calls_with_args(ast, name, module),
             else: get_funs(ast, name, module)
 
         calls |> Enum.uniq() |> Enum.map(&{&1, name, arities})
@@ -22,12 +22,35 @@ defmodule Sobelow.Parse.Calls do
     if calls == [], do: [], else: effective_calls(ast, calls)
   end
 
+  defp erlang_calls_with_args(ast, name, module) do
+    qualified = get_erlang_aliased_funs_of_type(ast, name, module)
+
+    if Sobelow.Lexical.active?() do
+      pipes = pipe_args(ast)
+
+      imported =
+        ast
+        |> get_funs_of_type(name)
+        |> Enum.filter(fn call ->
+          extra = if Map.has_key?(pipes, call), do: 1, else: 0
+          Sobelow.Lexical.erlang_imported?(call, module, extra)
+        end)
+
+      qualified ++ imported
+    else
+      qualified
+    end
+  end
+
+  defp pipe_args(ast) do
+    Sobelow.FunctionAnalysis.fetch(ast, :pipe_args, fn ->
+      Map.new(get_funs_of_type(ast, :|>), fn {:|>, _, [value, call]} -> {call, value} end)
+    end)
+  end
+
   # Pipes and captures are shared by every caller scanning the same function.
   defp effective_calls(ast, calls) do
-    pipes =
-      Sobelow.FunctionAnalysis.fetch(ast, :pipe_args, fn ->
-        Map.new(get_funs_of_type(ast, :|>), fn {:|>, _, [value, call]} -> {call, value} end)
-      end)
+    pipes = pipe_args(ast)
 
     captures =
       Sobelow.FunctionAnalysis.fetch(ast, :original_captures, fn -> original_captures(ast) end)
