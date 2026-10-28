@@ -94,7 +94,7 @@ defmodule SobelowTest.DOS.ListToAtomTest do
   test "safe `:erlang.list_to_atom`" do
     func = """
     def index(conn, params) do
-      render conn, :erlang.list_to_atom("index")
+      render conn, :erlang.list_to_atom([105, 110, 100, 101, 120])
     end
     """
 
@@ -103,10 +103,10 @@ defmodule SobelowTest.DOS.ListToAtomTest do
     refute ListToAtom.parse_def_erlang(ast) |> vuln?
   end
 
-  test "safe `String.to_atom`" do
+  test "safe `List.to_atom`" do
     func = """
     def index(conn, params) do
-      render conn, List.to_atom("index")
+      render conn, List.to_atom([105, 110, 100, 101, 120])
     end
     """
 
