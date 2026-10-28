@@ -33,7 +33,9 @@ defmodule Sobelow.Scanner do
     Scan.configure(categories)
 
     # These are single units of work, run without a task timeout.
-    if Config in allowed, do: Config.fetch(project_root, project.routers, project.endpoints)
+    if Config in allowed,
+      do: Config.fetch(project_root, project.routers, project.endpoints, project.files)
+
     if Vuln in allowed, do: Vuln.get_vulns(project_root)
     allowed = allowed -- [Config, Vuln]
 
