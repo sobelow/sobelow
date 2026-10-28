@@ -21,6 +21,7 @@ defmodule Sobelow.Config do
             $ mix sobelow -d Config.Secrets
             $ mix sobelow -d Config.HTTPS
             $ mix sobelow -d Config.HSTS
+            $ mix sobelow -d Config.TLSVerify
 
   Configuration checks of all types can be ignored with the
   following command:
@@ -43,13 +44,14 @@ defmodule Sobelow.Config do
     Sobelow.Config.Secrets,
     Sobelow.Config.HTTPS,
     Sobelow.Config.HSTS,
-    Sobelow.Config.CSWH
+    Sobelow.Config.CSWH,
+    Sobelow.Config.TLSVerify
   ]
 
   use Sobelow.FindingType
   @skip_files ["dev.exs", "test.exs", "dev.secret.exs", "test.secret.exs"]
 
-  def fetch(root, router, endpoints) do
+  def fetch(root, router, endpoints, files \\ []) do
     allowed = Sobelow.allowed_checks(__MODULE__, @submodules)
     ignored_files = Sobelow.get_env(:ignored_files) || []
 
@@ -83,6 +85,9 @@ defmodule Sobelow.Config do
           Enum.each(router, fn path ->
             apply(mod, :run, [relative_path(path, root)])
           end)
+
+        mod == Sobelow.Config.TLSVerify ->
+          mod.run(dir_path, configs, files)
 
         mod in [CSWH] ->
           Enum.each(endpoints, fn path ->

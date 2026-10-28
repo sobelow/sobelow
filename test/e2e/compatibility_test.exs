@@ -65,6 +65,7 @@ defmodule Sobelow.CompatibilityTest do
         {String.replace_prefix(Atom.to_string(mod), "Elixir.Sobelow.", ""), mod.id()}
       end)
 
+    # New checks may add rule IDs; the release IDs must remain unchanged.
     assert Map.take(ids, Map.keys(expected["rule_ids"])) == expected["rule_ids"]
     {stdout, _stderr} = scan_io("basic", format: "sarif")
     results = hd(Jason.decode!(stdout)["runs"])["results"]
