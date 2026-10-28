@@ -7,6 +7,8 @@ defmodule SobelowTest.Config.TLSVerifyTest do
         ~S'HTTPoison.get(url, [], ssl: [verify: :verify_none])',
         ~S':ssl.connect(host, port, [verify: :verify_none])',
         ~S':hackney.get(url, [], <<>>, [:insecure])',
+        ~S':hackney.get(url, [], <<>>, insecure: true)',
+        ~S'HTTPoison.get(url, [], hackney: [insecure: true])',
         ~S':hackney.wt_connect(url, verify: :verify_none)',
         ~S':hackney.get(url, [], <<>>, ssl_options: [verify: :verify_none])',
         ~S':gun.open(host, port, %{transport: :tls, tls_opts: [verify: :verify_none]})',
@@ -22,6 +24,9 @@ defmodule SobelowTest.Config.TLSVerifyTest do
   for call <- [
         ~S'HTTPoison.get(url, [], ssl: [verify: :verify_peer])',
         ~S':hackney.get(url, [], <<>>, [follow_redirect: true])',
+        ~S':hackney.get(url, [], <<>>, insecure: false)',
+        ~S'HTTPoison.get(url, [], hackney: [insecure: false])',
+        ~S'other_call(insecure: true)',
         ~S':hackney.get(url, [], <<>>, [verify: :verify_none])',
         ~S'HTTPoison.get(url, [], hackney: [pool: :insecure])',
         ~S'other_call(verify: :verify_none)',
