@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.18.1
 
   * Bug fixes
     * Prevent bracket access on fields and anonymous calls from leaking AST tuples
