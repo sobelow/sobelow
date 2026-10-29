@@ -52,4 +52,13 @@ defmodule SobelowTest.DOS.ModuleConcatTest do
       assert {[{_, [:name]}], [:name], _} = ModuleConcat.parse_def(ast)
     end
   end
+
+  test "bracket access on a field is labeled with the field" do
+    ast =
+      Code.string_to_quoted!(
+        "def run(config, name), do: Module.concat(config.prefix[:key], name)"
+      )
+
+    assert {[{_, ["config.prefix", :name]}], _, _} = ModuleConcat.parse_def(ast)
+  end
 end
