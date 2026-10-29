@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+  * Bug fixes
+    * Prevent bracket access on fields and anonymous calls from leaking AST tuples
+      into finding labels and aborting scans, including interpolated input to
+      module-name, atom, compilation and file-selection checks. Chained brackets
+      retain their original input labels, including `conn.params` confidence.
+      Existing finding source locations and skip fingerprints are unchanged.
+
 ## v0.18.0
 
   * Enhancements
