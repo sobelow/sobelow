@@ -30,6 +30,57 @@ defmodule SobelowTest.E2E.RegressionTest do
              |> Enum.filter(&String.ends_with?(&1["file"], path))
   end
 
+  test "bracket access cannot leak AST labels or abort finding output" do
+    path =
+      temp_fixture_file("basic", "lib/bracket_access.ex", ~S'''
+      defmodule BracketAccess do
+        def run(conn, config, name, provider) do
+          Module.concat(["#{config.client_config[:client_id_prefix]}#{name}", Client])
+          Module.concat(["#{provider.()[:prefix]}#{name}", Client])
+          String.to_atom("#{config.nested.prefix[:key]}#{name}")
+          Code.compile_string("#{config.prefix[:key]}#{name}")
+          Code.compile_file(config.prefix[:key])
+          :file.consult("#{config[:key][:other]}#{name}")
+          :file.eval("#{config.prefix[:key]}#{name}")
+          ~w(#{config.prefix[:key]}#{name})a
+          String.to_atom(conn.params["nested"]["name"])
+        end
+      end
+      ''')
+
+    checks = [
+      "DOS.ModuleConcat",
+      "DOS.StringToAtom",
+      "RCE.Compile",
+      "DOS.Consult",
+      "RCE.File",
+      "DOS.BinToAtom"
+    ]
+
+    found =
+      scan("basic", only: checks)
+      |> findings()
+      |> Enum.filter(&String.ends_with?(&1["file"], path))
+
+    assert Enum.sort(Enum.map(found, &{&1["line"], &1["variable"]})) == [
+             {3, "config.client_config and name"},
+             {4, "provider.() and name"},
+             {5, "config.nested.prefix and name"},
+             {6, "config.prefix and name"},
+             {7, "config.prefix"},
+             {8, "config and name"},
+             {9, "config.prefix and name"},
+             {10, "config.prefix and name"},
+             {11, "conn.params"}
+           ]
+
+    for format <- ["txt", "compact", "flycheck", "github", "sarif"] do
+      {output, _stderr} = scan_io("basic", only: checks, format: format)
+      assert output =~ "DOS.ModuleConcat"
+      assert output =~ "RCE.Compile"
+    end
+  end
+
   test "literal statements in a router pipeline cannot abort config checks" do
     temp_fixture_file("basic", "lib/basic_web/router.ex", """
     defmodule BasicWeb.Router do

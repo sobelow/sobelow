@@ -27,6 +27,62 @@ defmodule Sobelow.ParseDynamicInputsTest do
     assert Parse.extract_opts(Code.string_to_quoted!("&2")) == "&2"
   end
 
+  for {access, labels} <- [
+        {"config.prefix[:key]", ["config.prefix"]},
+        {"config.nested.prefix[:key]", ["config.nested.prefix"]},
+        {"config[:key][:other]", [:config]},
+        {"provider.()[:key]", ["provider.()"]},
+        {~s|conn.params["nested"]["name"]|, ["conn.params"]}
+      ] do
+    test "bracket access labels stay printable across checks: #{access}" do
+      access = unquote(access)
+      labels = unquote(labels)
+      assert Parse.dynamic_vars(Code.string_to_quoted!(access)) == labels
+
+      for expression <- [access, ~s|"\#{#{access}}\#{name}"|] do
+        expected = if expression == access, do: labels, else: Enum.uniq(labels ++ [:name])
+
+        for {check, call} <- [
+              {Sobelow.DOS.ModuleConcat, "Module.concat([#{expression}, Client])"},
+              {Sobelow.DOS.StringToAtom, "String.to_atom(#{expression})"},
+              {Sobelow.RCE.Compile, "Code.compile_string(#{expression})"},
+              {Sobelow.RCE.Compile, "Code.compile_file(#{expression})"},
+              {Sobelow.DOS.Consult, ":file.consult(#{expression})"},
+              {Sobelow.RCE.File, ":file.eval(#{expression})"}
+            ] do
+          ast =
+            Code.string_to_quoted!("def run(conn, config, name, provider), do: #{call}",
+              columns: true
+            )
+
+          {:def, _, [_head, [do: original]]} = ast
+          parsed = check.parse_def(ast)
+          assert {[{^original, variables}], _, _} = parsed
+          assert List.wrap(variables) == expected
+
+          assert Sobelow.FunctionAnalysis.with_fun(ast, fn -> check.parse_def(ast) end) == parsed
+
+          assert [finding] =
+                   Sobelow.Finding.init("Test.Check: Bracket access", "brackets.ex")
+                   |> Sobelow.Finding.multi_from_def(ast, parsed)
+
+          assert finding.vuln_variable ==
+                   if(length(expected) == 1, do: hd(expected), else: Enum.join(expected, " and "))
+
+          assert finding.vuln_source == original
+          assert finding.vuln_line_no == Parse.get_fun_line(original)
+          assert finding.vuln_col_no == Parse.get_fun_column(original)
+
+          assert finding.confidence ==
+                   if(Enum.any?(expected, &(&1 in [:config, :name, "conn.params"])),
+                     do: :high,
+                     else: :medium
+                   )
+        end
+      end
+    end
+  end
+
   test "cached traversal retains piped capture placeholders" do
     ast = Code.string_to_quoted!("def run(inputs), do: Enum.map(inputs, &(&1 |> :os.cmd()))")
 

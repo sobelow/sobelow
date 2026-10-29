@@ -96,18 +96,7 @@ defmodule Sobelow.Parse.Variables do
   defp dynamic_labels({:{}, _, values}), do: dynamic_labels(values)
   defp dynamic_labels({:%{}, _, values}), do: dynamic_labels(values)
   defp dynamic_labels({key, value}), do: dynamic_labels([key, value])
-
-  defp dynamic_labels(value) do
-    value |> parse_opts() |> List.wrap() |> List.flatten() |> Enum.map(&dynamic_label/1)
-  end
-
-  # parse_opts/1 keeps a field accessed with brackets (`config.prefix[:key]`)
-  # as its dot AST, so render it as a printable label.
-  defp dynamic_label({:., _, [_, field]} = dot) when is_atom(field) do
-    Macro.to_string({dot, [no_parens: true], []})
-  end
-
-  defp dynamic_label(label), do: label
+  defp dynamic_labels(value), do: value |> parse_opts() |> List.wrap() |> List.flatten()
 
   def atom_sigil_findings(fun) do
     bare =
@@ -165,6 +154,16 @@ defmodule Sobelow.Parse.Variables do
   defp parse_opts({{:., _, [Access, :get]}, _, [{{:., _, [{:conn, _, nil}, :params]}, _, _}, _]}) do
     "conn.params"
   end
+
+  # Follow chained brackets before extracting a label; otherwise the inner
+  # Access.get call leaks its dot AST instead of the original input variable.
+  defp parse_opts({{:., _, [Access, :get]}, _, [{{:., _, [Access, :get]}, _, _} = value | _]}),
+    do: parse_opts(value)
+
+  # A bracket receiver can be a field, remote call or anonymous call. Keep its
+  # complete expression printable, including when nested in interpolation.
+  defp parse_opts({{:., _, [Access, :get]}, _, [{{:., _, _}, _, _} = value | _]}),
+    do: Macro.to_string(value)
 
   defp parse_opts({{:., _, [Access, :get]}, _, [{val, _, _} | _]}), do: val
   defp parse_opts({{:., _, [Access, :get]}, _, [value | _]}), do: parse_opts(value)
