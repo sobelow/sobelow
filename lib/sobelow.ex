@@ -237,6 +237,7 @@ defmodule Sobelow do
       "DOS.Tar" -> Sobelow.DOS.Tar
       "DOS.XML" -> Sobelow.DOS.XML
       "DOS.CompressedFile" -> Sobelow.DOS.CompressedFile
+      "DOS.Regex" -> Sobelow.DOS.Regex
       _ -> nil
     end
   end
