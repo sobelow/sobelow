@@ -22,7 +22,7 @@ security issues:
 * Command injection
 * Code execution
 * Weak cryptographic algorithms
-* Denial of Service
+* Denial of Service and resource exhaustion
 * Directory traversal
 * Unsafe serialization
 
@@ -49,7 +49,6 @@ features or security checks, please open an issue!
 - [Configuration Files](#configuration-files)
 - [False Positives](#false-positives)
 - [Modules](#modules)
-  - [Resource-exhaustion checks](#resource-exhaustion-checks)
 - [Usage Rules](#usage-rules)
 - [Umbrella Apps](#umbrella-apps)
 - [Development and Coverage](#development-and-coverage)
@@ -264,25 +263,6 @@ This list, and other helpful information, can be found on the
 command line:
 
     $ mix help sobelow
-
-### Resource-exhaustion checks
-
-New in v0.19.0, the `DOS` category includes checks for potentially unbounded ZIP and TAR
-extraction (`DOS.Zip`, `DOS.Tar`), zlib decompression (`DOS.Decompression`), full
-reads from locally tracked compressed-file devices (`DOS.CompressedFile`),
-explicit XML entity-expansion or external-loading options (`DOS.XML`), and
-dynamic regex compilation (`DOS.Regex`). ZIP analysis also recognizes inline
-`:zip.foldl/3` callbacks that directly invoke the entry-content accessor.
-
-These are conservative checks for potential resource risks, not proofs of
-exploitability or resource bounds. Analysis is deliberately narrow; the absence
-of a finding does not imply safety. Use `mix sobelow --details DOS.Zip` (or the
-corresponding check name) for detection limits and mitigation guidance. The
-existing `Misc.BinToTerm` guidance also covers decoded-memory and compressed ETF
-risks without adding a duplicate finding.
-
-Upgrading can produce additional findings and affect confidence-based `--exit`
-thresholds. See the [changelog](CHANGELOG.md) for the full v0.19.0 release notes.
 
 ## Usage Rules
 
