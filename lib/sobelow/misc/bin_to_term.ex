@@ -16,8 +16,19 @@ defmodule Sobelow.Misc.BinToTerm do
 
   Prefer `Plug.Crypto.non_executable_binary_to_term(data, [:safe])` for
   untrusted ETF input, and validate the resulting types and structure.
-  That combination is omitted by this check, but does not bound decoded
-  size, decompression, or work performed on the resulting data.
+  That combination is omitted by this check, but omission is not an assurance
+  of bounded resource use. ETF supports compressed terms: neither `:safe` nor
+  rejection of executable terms imposes a decompression or decoded-memory
+  budget. Even uncompressed terms can allocate more memory than their encoded
+  representation. A limit on encoded bytes alone may therefore be insufficient.
+
+  Validate types and structure, but remember that validation after decoding
+  cannot prevent allocations already made by the decoder. Bound input,
+  concurrency and execution resources independently; for hostile inputs,
+  consider an isolated decoding worker with externally enforced resource
+  limits. No decoder option described here provides a hard cumulative resource
+  budget, and subsequent processing of the decoded term needs its own limits.
+  Confidence reflects decoder protections, not proof of resource safety.
 
   `binary_to_term` checks can be ignored with the following command:
 
