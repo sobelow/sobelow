@@ -25,6 +25,7 @@ defmodule Sobelow.DOS do
           $ mix sobelow -d DOS.Zip
           $ mix sobelow -d DOS.Decompression
           $ mix sobelow -d DOS.Tar
+          $ mix sobelow -d DOS.XML
 
   Denial of Service checks of all types can be ignored with the
   following command:
@@ -40,7 +41,8 @@ defmodule Sobelow.DOS do
     Sobelow.DOS.ModuleConcat,
     Sobelow.DOS.Zip,
     Sobelow.DOS.Decompression,
-    Sobelow.DOS.Tar
+    Sobelow.DOS.Tar,
+    Sobelow.DOS.XML
   ]
   use Sobelow.FindingType
 
