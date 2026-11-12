@@ -58,6 +58,10 @@ defmodule Sobelow.Parse do
 
   defdelegate calls_with_args(ast, specifications), to: Calls
 
+  defdelegate unescaped_regex_vars(fun, pattern),
+    to: Sobelow.Parse.RegexPatterns,
+    as: :unescaped_vars
+
   defdelegate compressed_file_findings(fun), to: Sobelow.Parse.CompressedFiles, as: :findings
 
   defdelegate risky_xml_options?(parser, options), to: Sobelow.Parse.XMLOptions, as: :risky?

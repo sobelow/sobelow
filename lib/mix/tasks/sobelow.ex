@@ -114,6 +114,7 @@ defmodule Mix.Tasks.Sobelow do
   * DOS.Tar
   * DOS.XML
   * DOS.CompressedFile
+  * DOS.Regex
 
   """
   @switches [

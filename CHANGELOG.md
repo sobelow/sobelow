@@ -3,6 +3,9 @@
 ## Unreleased
 
   * Enhancements
+    * Add narrow `DOS.Regex` findings for dynamic pattern compilation, omitting
+      direct escaped inputs. Fixed-pattern complexity and matching calls are
+      outside the initial scope; absence of a finding does not imply safety.
     * Add `DOS.CompressedFile` to connect local compressed-file opens, including
       piped opens, with full IO reads. Findings point at reads and retain the
       originating path label. Captured outer handles stop being tracked across
