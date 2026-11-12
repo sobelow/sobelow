@@ -232,6 +232,7 @@ defmodule Sobelow do
       "DOS.DecodeAtoms" -> Sobelow.DOS.DecodeAtoms
       "DOS.Consult" -> Sobelow.DOS.Consult
       "DOS.ModuleConcat" -> Sobelow.DOS.ModuleConcat
+      "DOS.Zip" -> Sobelow.DOS.Zip
       _ -> nil
     end
   end

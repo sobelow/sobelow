@@ -91,6 +91,61 @@ defmodule Sobelow.Parse.Variables do
     end
   end
 
+  # Binary/iodata checks need segment values and dynamic sizes, not type labels.
+  # Normalize only the input used for labels; retain original finding ASTs.
+  def binary_input_vars(value) do
+    value
+    |> Macro.prewalk(fn
+      {:<<>>, _, parts} ->
+        Enum.flat_map(parts, &binary_part_inputs/1)
+
+      {sigil, _, [{:<<>>, _, parts}, []]}
+      when sigil in [:sigil_s, :sigil_S, :sigil_c, :sigil_C] ->
+        # prewalk does not revisit the replacement root. Normalize the contents
+        # here too: older Elixir releases do not classify binary ASTs as literals.
+        Enum.flat_map(parts, &binary_part_inputs/1)
+
+      {sign, _, [number]} when sign in [:+, :-] and is_number(number) ->
+        number
+
+      node ->
+        node
+    end)
+    |> dynamic_vars()
+  end
+
+  defp binary_part_inputs({:"::", _, [value, spec]}),
+    do: binary_part_inputs(value) ++ binary_size_inputs(spec)
+
+  defp binary_part_inputs({{:., _, [Kernel, :to_string]}, _, [value]}), do: [value]
+  defp binary_part_inputs(value), do: [value]
+
+  defp binary_size_inputs({:-, _, [left, right]}),
+    do: binary_size_inputs(left) ++ binary_size_inputs(right)
+
+  defp binary_size_inputs({name, _, [value]}) when name in [:size, :unit], do: [value]
+
+  defp binary_size_inputs({type, _, context})
+       when type in [
+              :integer,
+              :float,
+              :binary,
+              :bytes,
+              :bitstring,
+              :bits,
+              :utf8,
+              :utf16,
+              :utf32,
+              :signed,
+              :unsigned,
+              :big,
+              :little,
+              :native
+            ] and (is_atom(context) or context == []),
+       do: []
+
+  defp binary_size_inputs(value), do: [value]
+
   defp dynamic_labels(values) when is_list(values), do: Enum.flat_map(values, &dynamic_vars/1)
 
   defp dynamic_labels({:{}, _, values}), do: dynamic_labels(values)
