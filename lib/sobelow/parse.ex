@@ -58,6 +58,8 @@ defmodule Sobelow.Parse do
 
   defdelegate calls_with_args(ast, specifications), to: Calls
 
+  defdelegate compressed_file_findings(fun), to: Sobelow.Parse.CompressedFiles, as: :findings
+
   defdelegate risky_xml_options?(parser, options), to: Sobelow.Parse.XMLOptions, as: :risky?
 
   defdelegate tls_option_calls(ast, matcher, skipped_functions \\ MapSet.new()),

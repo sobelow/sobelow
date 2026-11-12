@@ -3,6 +3,10 @@
 ## Unreleased
 
   * Enhancements
+    * Add `DOS.CompressedFile` to connect local compressed-file opens, including
+      piped opens, with full IO reads. Findings point at reads and retain the
+      originating path label. Captured outer handles stop being tracked across
+      open callbacks; callback device tracking remains local.
     * Add narrow `DOS.XML` findings for explicit entity-expansion and external
       loading options. Default-only calls are not treated as unsafe or safe;
       option support is runtime-specific. Bounded XML experiments distinguish
