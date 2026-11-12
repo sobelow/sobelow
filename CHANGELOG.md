@@ -3,6 +3,10 @@
 ## Unreleased
 
   * Enhancements
+    * Extend `DOS.Zip` to inline `:zip.foldl/3` callbacks that directly invoke
+      the entry-content accessor before any rebinding. Metadata-only callbacks
+      are omitted. New findings point at the enclosing fold call; existing
+      locations and skip fingerprints are unchanged.
     * Clarify compressed ETF and decoded-memory risks in `Misc.BinToTerm` help.
       Decoder protections, detection boundaries and fingerprints are unchanged.
     * Add `DOS.Tar` for dynamic Erlang TAR extraction inputs, including compressed

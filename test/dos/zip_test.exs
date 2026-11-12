@@ -68,6 +68,63 @@ defmodule SobelowTest.DOS.ZipTest do
     end
   end
 
+  for callback <- [
+        "fn _name, _info, get, acc -> {get.(), acc} end",
+        "fn _, _, get, acc -> value = get.(); {value, acc} end",
+        "fn _, _, get, acc -> value = get.(); get = other; {value, acc} end",
+        "fn _, _, get, acc -> get = get.(); {get, acc} end",
+        "fn _, _, get, acc -> {get, acc} = {get.(), acc}; {get, acc} end",
+        "fn _, _, get, acc -> {get.(), (get = other), acc} end",
+        "fn _, _, get, acc -> {(get = other), get.(), acc} end",
+        "fn _, _, get, acc -> value = get.(); get = other; get.(); {value, acc} end",
+        "fn :skip, _, _, acc -> acc; _, _, get, acc -> {get.(), get.(), acc} end"
+      ] do
+    test "reports one fold finding for #{callback}" do
+      ast =
+        Code.string_to_quoted!(
+          "def read(archive), do: :zip.foldl(#{unquote(callback)}, [], archive)"
+        )
+
+      assert {[{call, [:archive]}], [:archive], {:read, 1}} = Zip.parse_def(ast)
+      assert {{:., _, [:zip, :foldl]}, _, _} = call
+    end
+  end
+
+  for callback <- [
+        "fn name, info, _get, acc -> {name, info.(), acc} end",
+        "fn _, _, get, acc -> {get, acc} end",
+        "fn _, _, get, acc -> other = get; {other.(), acc} end",
+        "fn _, _, get, acc -> get = other; {get.(), acc} end",
+        "fn _, _, get, acc -> {get, other} = pair; {get.(), acc} end",
+        "fn _, _, get, acc -> {(get = other), acc}; {get.(), acc} end",
+        "fn _, _, get, acc -> get = other; value = get.(); {value, acc} end",
+        "fn _, _, get, acc -> Enum.map(acc, fn get -> get.() end) end",
+        "fn _, _, get, acc -> case acc do get -> get.() end end",
+        "fn _, _, get, acc -> quote do: get.() end",
+        "fn _, _, get, acc when is_list(acc) -> {get.(), acc} end",
+        "&callback/4",
+        "callback"
+      ] do
+    test "omits unsupported or metadata callback #{callback}" do
+      ast =
+        Code.string_to_quoted!(
+          "def read(archive), do: :zip.foldl(#{unquote(callback)}, [], archive)"
+        )
+
+      assert {[], _, _} = Zip.parse_def(ast)
+    end
+  end
+
+  test "fold archive input is last even in pipes and literals stay omitted" do
+    callback = "fn _, _, get, acc -> {get.(), acc} end"
+
+    ast = Code.string_to_quoted!("def read(archive), do: #{callback} |> :zip.foldl([], archive)")
+    assert {[{_, [:archive]}], _, _} = Zip.parse_def(ast)
+
+    ast = Code.string_to_quoted!("def read, do: :zip.foldl(#{callback}, [], <<1, 2>>)")
+    assert {[], _, _} = Zip.parse_def(ast)
+  end
+
   test "tracks the archive handle, not the selected filename" do
     ast = Code.string_to_quoted!("def read(name, handle), do: :zip.zip_get(name, handle)")
     assert {[{_, [:handle]}], [:name, :handle], {:read, 1}} = Zip.parse_def(ast)

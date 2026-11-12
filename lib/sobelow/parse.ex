@@ -76,6 +76,11 @@ defmodule Sobelow.Parse do
   defdelegate extract_opts(ast, idx), to: Variables
   defdelegate dynamic_vars(value), to: Variables
   defdelegate binary_input_vars(value), to: Variables
+
+  defdelegate zip_content_callback?(callback),
+    to: Sobelow.Parse.ZipCallbacks,
+    as: :content_callback?
+
   defdelegate atom_sigil_findings(fun), to: Variables
   defdelegate get_fun_declaration(ast), to: Variables
   defdelegate get_pipe_val(ast, pipe_fun), to: Variables
