@@ -109,6 +109,7 @@ defmodule Mix.Tasks.Sobelow do
   * DOS.DecodeAtoms
   * DOS.Consult
   * DOS.ModuleConcat
+  * DOS.Zip
 
   """
   @switches [

@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+  * Enhancements
+    * Add `DOS.Zip` for potentially unbounded extraction through Erlang ZIP APIs.
+      Dynamic archive inputs and handles are reported conservatively; literal
+      inputs, metadata-only operations and archive creation are omitted.
+      Declared-size checks do not suppress findings.
+
 ## v0.18.1
 
   * Bug fixes
