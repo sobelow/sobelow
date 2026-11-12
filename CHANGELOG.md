@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## v0.19.0
+
+New checks and expanded ZIP callback analysis can produce additional findings and
+change confidence-based CI exit results. Existing finding locations and skip
+fingerprints are preserved. The minimum supported Elixir remains 1.12.
 
   * Enhancements
     * Add narrow `DOS.Regex` findings for dynamic pattern compilation, omitting
@@ -225,8 +229,8 @@
       trips run across the supported matrix. Independent release column captures
       qualify older parsers, and highlighting follows each runtime's printer.
     * Added compatibility coverage for all 70 pre-extraction public function and
-      arity pairs on `Sobelow` and `Sobelow.Parse`, including traversal callbacks
-      and default arities.
+      arity pairs on `Sobelow` and <code>Sobelow.Parse</code>, including traversal
+      callbacks and default arities.
     * Expanded benchmarks to seven workloads and quiet/JSON/SARIF output, with
       complete finding and output comparisons, reduction counts, and separate
       sampled VM memory. Methodology, measurements, and limits are documented in
@@ -243,7 +247,7 @@
     * Split scan discovery, execution, skip-file persistence, and version checks
       into focused internal modules. Shared AST helpers now live in source,
       metadata, calls, variables, and template modules, with the existing
-      `Sobelow` and `Sobelow.Parse` entry points preserved.
+      `Sobelow` and <code>Sobelow.Parse</code> entry points preserved.
     * Consolidated duplicate matchers and worker setup, reused relative-path
       handling, and shortened stale comments. Updated contributor and usage
       guidance to document the new module boundaries and scan options.
@@ -412,7 +416,7 @@
     * Support for minimum Elixir versions 1.7 - 1.11 (**POTENTIALLY BREAKING** - only applies if you relied on Elixir 1.7 through 1.11, 1.12+ is still supported)
   * Enhancements
     * Added support for multiple variations of `SQL.query()`
-    * Added support for `System.shell' command introduced in Elixir v1.12
+    * Added support for `System.shell` command introduced in Elixir v1.12
     * Ignore runtime config during `Config.HSTS`
     * Updated developer dependencies (`ex_doc` & `credo`)
   * Bug fixes
