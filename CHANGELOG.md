@@ -7,6 +7,9 @@
       Dynamic archive inputs and handles are reported conservatively; literal
       inputs, metadata-only operations and archive creation are omitted.
       Declared-size checks do not suppress findings.
+    * Add `DOS.Decompression` for dynamic input to unbounded zlib decompression
+      APIs. Compression and bounded-output primitives are omitted; input chunking
+      and post-decompression size checks do not suppress findings.
 
 ## v0.18.1
 
