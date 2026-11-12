@@ -3,6 +3,8 @@
 ## Unreleased
 
   * Enhancements
+    * Clarify compressed ETF and decoded-memory risks in `Misc.BinToTerm` help.
+      Decoder protections, detection boundaries and fingerprints are unchanged.
     * Add `DOS.Tar` for dynamic Erlang TAR extraction inputs, including compressed
       and selected-entry extraction. Runtime-specific limits require review.
     * Add `DOS.Zip` for potentially unbounded extraction through Erlang ZIP APIs.

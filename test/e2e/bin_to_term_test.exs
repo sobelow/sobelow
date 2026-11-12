@@ -80,5 +80,19 @@ defmodule SobelowTest.E2E.BinToTermTest do
     {output, _} = scan_io("basic", skip: true, format: "sarif")
     [run] = Jason.decode!(output)["runs"]
     assert Enum.count(run["results"], &(&1["ruleId"] == "SBLW014")) == 1
+
+    rule = Enum.find(run["tool"]["driver"]["rules"], &(&1["id"] == "SBLW014"))
+    assert rule["help"]["text"] =~ "ETF supports compressed terms"
+    assert rule["help"]["markdown"] =~ "validation after decoding"
+  end
+
+  test "CLI details explain resource risk independently of decoder protections" do
+    help =
+      ExUnit.CaptureIO.capture_io(fn ->
+        Mix.Tasks.Sobelow.run(["--details", "Misc.BinToTerm", "--private"])
+      end)
+
+    assert help =~ "neither `:safe`"
+    assert help =~ "not proof of resource safety"
   end
 end
