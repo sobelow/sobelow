@@ -3,6 +3,10 @@
 ## Unreleased
 
   * Enhancements
+    * Add narrow `DOS.XML` findings for explicit entity-expansion and external
+      loading options. Default-only calls are not treated as unsafe or safe;
+      option support is runtime-specific. Bounded XML experiments distinguish
+      entity rejection from unsupported options and verify duplicate precedence.
     * Extend `DOS.Zip` to inline `:zip.foldl/3` callbacks that directly invoke
       the entry-content accessor before any rebinding. Metadata-only callbacks
       are omitted. New findings point at the enclosing fold call; existing

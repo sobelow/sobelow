@@ -235,6 +235,7 @@ defmodule Sobelow do
       "DOS.Zip" -> Sobelow.DOS.Zip
       "DOS.Decompression" -> Sobelow.DOS.Decompression
       "DOS.Tar" -> Sobelow.DOS.Tar
+      "DOS.XML" -> Sobelow.DOS.XML
       _ -> nil
     end
   end
