@@ -3,6 +3,8 @@
 ## Unreleased
 
   * Enhancements
+    * Add `DOS.Tar` for dynamic Erlang TAR extraction inputs, including compressed
+      and selected-entry extraction. Runtime-specific limits require review.
     * Add `DOS.Zip` for potentially unbounded extraction through Erlang ZIP APIs.
       Dynamic archive inputs and handles are reported conservatively; literal
       inputs, metadata-only operations and archive creation are omitted.

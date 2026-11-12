@@ -111,6 +111,7 @@ defmodule Mix.Tasks.Sobelow do
   * DOS.ModuleConcat
   * DOS.Zip
   * DOS.Decompression
+  * DOS.Tar
 
   """
   @switches [

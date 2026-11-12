@@ -234,6 +234,7 @@ defmodule Sobelow do
       "DOS.ModuleConcat" -> Sobelow.DOS.ModuleConcat
       "DOS.Zip" -> Sobelow.DOS.Zip
       "DOS.Decompression" -> Sobelow.DOS.Decompression
+      "DOS.Tar" -> Sobelow.DOS.Tar
       _ -> nil
     end
   end
