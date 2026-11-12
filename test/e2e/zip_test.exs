@@ -103,6 +103,30 @@ defmodule SobelowTest.E2E.ZipTest do
     assert [] = scan("basic", only: ["DOS.Zip"]) |> findings_for("DOS.Zip")
   end
 
+  test "inline fold content access uses archive provenance and enclosing call locations" do
+    temp_fixture_file("basic", "lib/basic_web/controllers/fold_controller.ex", """
+    defmodule BasicWeb.FoldController do
+      use BasicWeb, :controller
+      import :zip, only: [foldl: 3]
+      def index(conn, %{"archive" => archive}) do
+        foldl(fn _, _, get, acc -> {get.(), get.(), acc} end, [], archive)
+        foldl(fn _, _, get, acc -> value = get.(); get = other; {value, acc} end, [], archive)
+        :zip.foldl(fn _, info, _, acc -> {info.(), acc} end, [], archive)
+      end
+      # sobelow_skip ["DOS.Zip"]
+      def skipped(archive), do: :zip.foldl(fn _, _, get, acc -> {get.(), acc} end, [], archive)
+    end
+    """)
+
+    found = scan("basic", only: ["DOS.Zip"], skip: true) |> findings_for("DOS.Zip")
+
+    assert Enum.map(found, &{&1["line"], &1["confidence"], &1["variable"]}) ==
+             [{5, "medium", "archive"}, {6, "medium", "archive"}]
+
+    {output, _} = scan_io("basic", only: ["DOS.Zip"], skip: true, format: "sarif")
+    assert output =~ "SBLW046"
+  end
+
   test "supports only, category and check ignores, function skips and all output formats" do
     temp_fixture_file("basic", "lib/archive_reader.ex", """
     defmodule ArchiveReader do

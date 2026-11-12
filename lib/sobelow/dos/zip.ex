@@ -18,8 +18,12 @@ defmodule Sobelow.DOS.Zip do
   influencing archive input receive medium confidence; other inputs and handles
   receive low confidence. Fully literal inputs are omitted, but a fixed filename
   can still contain untrusted data. Archive provenance and custom preflight
-  validators are not verified. Metadata-only operations, archive creation and
-  `:zip.foldl/3` are not covered. Audit bounded wrappers before skipping them.
+  validators are not verified. Inline `:zip.foldl/3` callbacks are reported only
+  when they directly invoke the third (entry-content) accessor before rebinding
+  it. Findings point at the enclosing `foldl` call and use its archive input.
+  Metadata-only callbacks, delegated/guarded callbacks, accessor aliases and
+  invocations in nested scopes or branching constructs are not tracked. Archive
+  creation is omitted. Audit bounded wrappers before skipping them.
 
   https://www.erlang.org/doc/apps/stdlib/zip.html
 
@@ -29,7 +33,7 @@ defmodule Sobelow.DOS.Zip do
   """
   @uid 46
   @finding_type "DOS.Zip: Potential Resource Exhaustion in ZIP Extraction"
-  @archive_calls [{:zip, :unzip, [1, 2]}, {:zip, :extract, [1, 2]}]
+  @archive_calls [{:zip, :unzip, [1, 2]}, {:zip, :extract, [1, 2]}, {:zip, :foldl, [3]}]
   @handle_calls [{:zip, :zip_get, [1, 2]}]
 
   use Sobelow.Finding
@@ -49,6 +53,7 @@ defmodule Sobelow.DOS.Zip do
 
   # unzip(archive, options), extract(archive, options): input index 0.
   # zip_get(handle), zip_get(filename, handle): the handle is the last argument.
+  # foldl(callback, accumulator, archive): archive at index 2; callback must inflate.
   def parse_def(fun), do: parse_calls(fun, @archive_calls ++ @handle_calls)
 
   defp parse_calls(fun, calls) do
@@ -56,11 +61,15 @@ defmodule Sobelow.DOS.Zip do
 
     findings =
       for {call, name, args} <- Parse.calls_with_args(fun, calls),
-          input = if(name == :zip_get, do: List.last(args), else: hd(args)),
+          name != :foldl or Parse.zip_content_callback?(hd(args)),
+          input = archive_input(name, args),
           variables = Parse.binary_input_vars(input),
           variables != [],
           do: {call, variables}
 
     {findings, params, declaration}
   end
+
+  defp archive_input(name, args) when name in [:zip_get, :foldl], do: List.last(args)
+  defp archive_input(_, args), do: hd(args)
 end
