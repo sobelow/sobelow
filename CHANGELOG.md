@@ -229,8 +229,8 @@ fingerprints are preserved. The minimum supported Elixir remains 1.12.
       trips run across the supported matrix. Independent release column captures
       qualify older parsers, and highlighting follows each runtime's printer.
     * Added compatibility coverage for all 70 pre-extraction public function and
-      arity pairs on `Sobelow` and <code>Sobelow.Parse</code>, including traversal
-      callbacks and default arities.
+      arity pairs on `Sobelow` and Sobelow.Parse, including traversal callbacks
+      and default arities.
     * Expanded benchmarks to seven workloads and quiet/JSON/SARIF output, with
       complete finding and output comparisons, reduction counts, and separate
       sampled VM memory. Methodology, measurements, and limits are documented in
@@ -247,7 +247,7 @@ fingerprints are preserved. The minimum supported Elixir remains 1.12.
     * Split scan discovery, execution, skip-file persistence, and version checks
       into focused internal modules. Shared AST helpers now live in source,
       metadata, calls, variables, and template modules, with the existing
-      `Sobelow` and <code>Sobelow.Parse</code> entry points preserved.
+      `Sobelow` and Sobelow.Parse entry points preserved.
     * Consolidated duplicate matchers and worker setup, reused relative-path
       handling, and shortened stale comments. Updated contributor and usage
       guidance to document the new module boundaries and scan options.
