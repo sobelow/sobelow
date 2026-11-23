@@ -98,7 +98,10 @@ defmodule Sobelow do
     |> Enum.flat_map(&apply(&1, :finding_modules, []))
   end
 
-  def save_config(conf_file) do
+  def save_config(conf_file), do: save_config(conf_file, File.read(conf_file))
+
+  @doc false
+  def save_config(conf_file, snapshot) do
     conf = [
       exit: get_env(:exit_on),
       format: get_env(:format),
@@ -107,27 +110,36 @@ defmodule Sobelow do
       ignore_files: relative_ignored_files(),
       include_mix_tasks: get_env(:include_mix_tasks),
       include_scripts: get_env(:include_scripts),
+      legacy_skips: get_env(:legacy_skips),
       out: get_env(:out),
       private: get_env(:private),
       router: get_env(:router),
       skip: get_env(:skip),
+      strict: get_env(:strict),
       summary: get_env(:summary),
       threshold: get_env(:threshold),
       verbose: get_env(:verbose)
     ]
 
     yes? =
-      if File.exists?(conf_file) do
+      if match?({:ok, _}, snapshot) do
         MixIO.yes?("The file .sobelow-conf already exists. Are you sure you want to overwrite?")
       else
         true
       end
 
     if yes? do
-      Sobelow.SafeWrite.write!(
-        conf_file,
-        inspect(conf, limit: :infinity, printable_limit: :infinity)
-      )
+      Sobelow.SafeWrite.transaction!(conf_file, fn ->
+        if File.read(conf_file) != snapshot do
+          raise Sobelow.ScanError,
+                "#{conf_file} changed while preparing the save; retry the command."
+        end
+
+        Sobelow.SafeWrite.write!(
+          conf_file,
+          inspect(conf, limit: :infinity, printable_limit: :infinity)
+        )
+      end)
 
       MixIO.info("Updated .sobelow-conf")
     end

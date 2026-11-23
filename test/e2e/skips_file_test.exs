@@ -37,6 +37,20 @@ defmodule Sobelow.SkipsFileTest do
     assert findings(scan("basic", skip: true)) == []
   end
 
+  test "paths containing commas round-trip as bare fingerprints" do
+    path =
+      temp_fixture_file("basic", "lib/notes,archive.ex", """
+      defmodule Archive do
+        def read(path), do: File.read(path)
+      end
+      """)
+
+    assert Enum.any?(findings(scan("basic")), &String.ends_with?(&1["file"], path))
+    mark_skips("basic")
+    assert Enum.any?(skip_lines("basic"), &Regex.match?(~r/^[0-9A-F]+$/i, &1))
+    assert findings(scan("basic", skip: true)) == []
+  end
+
   test "entries are written sorted" do
     mark_skips("basic")
 

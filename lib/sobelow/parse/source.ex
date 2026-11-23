@@ -26,8 +26,8 @@ defmodule Sobelow.Parse.Source do
 
         ast(filepath)
 
-      {:error, reason} ->
-        unreadable_source(filepath, reason)
+      {:error, _reason} ->
+        ast(filepath)
     end
   end
 
@@ -57,7 +57,7 @@ defmodule Sobelow.Parse.Source do
     message = "#{filepath}:#{format_location(location)} #{format_error(err, token)}"
     Sobelow.Scan.record(filepath, :unparseable, message)
 
-    if Application.get_env(:sobelow, :strict) do
+    if Sobelow.get_env(:strict) do
       IO.puts(:stderr, message)
       System.halt(2)
     else

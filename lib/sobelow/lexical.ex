@@ -247,9 +247,11 @@ defmodule Sobelow.Lexical do
     {env, acc}
   end
 
-  defp walk({kind, _, [_head, [do: body]]} = node, env, acc) when kind in [:def, :defp] do
-    {_inner, local} = walk(body, env, %{functions: %{}, calls: %{}})
-    {env, %{acc | functions: Map.put(acc.functions, node, local.calls)}}
+  defp walk({kind, _, [_head | _] = parts} = node, env, acc) when kind in [:def, :defp] do
+    # Qualified checks can see defaults and implicit rescue/else/after clauses.
+    {_inner, local} = walk(parts, env, %{functions: %{}, calls: %{}})
+    functions = Map.merge(acc.functions, local.functions) |> Map.put(node, local.calls)
+    {env, %{acc | functions: functions}}
   end
 
   defp walk({:alias, _, [module | options]}, env, acc) do

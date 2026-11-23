@@ -9,23 +9,31 @@ defmodule Sobelow.SkipFile do
   def clear(project_root) do
     cfile = project_root <> @skips
 
-    if File.exists?(cfile) do
-      File.rm!(cfile)
-    end
+    Sobelow.SafeWrite.transaction!(cfile, fn ->
+      case File.rm(cfile) do
+        :ok ->
+          :ok
+
+        {:error, :enoent} ->
+          :ok
+
+        {:error, reason} ->
+          raise Sobelow.ScanError, "Could not clear #{cfile}: #{:file.format_error(reason)}"
+      end
+    end)
   end
 
   def load(project_root) do
     cfile = project_root <> @skips
 
-    if File.exists?(cfile) do
-      case :file.open(cfile, [:read]) do
-        {:ok, iofile} ->
-          :file.read_line(iofile) |> load_ignored_fingerprints(iofile)
-          :file.close(iofile)
+    case read_skips(cfile) do
+      {:ok, lines} ->
+        Enum.each(lines, fn line ->
+          if fingerprint = entry_fingerprint(line), do: Fingerprint.put_ignore(fingerprint)
+        end)
 
-        {:error, _} ->
-          nil
-      end
+      {:error, reason} ->
+        IO.puts(:stderr, read_error(cfile, reason) <> "; continuing without saved skips.")
     end
   end
 
@@ -50,17 +58,33 @@ defmodule Sobelow.SkipFile do
 
   defp skip_entry(fingerprint, %Finding{} = finding) do
     filename = Sobelow.Scan.relative_filename(finding.filename)
-    "#{finding.type},#{filename}:#{finding.vuln_line_no},#{fingerprint}"
+
+    if String.contains?(filename, [",", "\n", "\r"]) do
+      fingerprint
+    else
+      "#{finding.type},#{filename}:#{finding.vuln_line_no},#{fingerprint}"
+    end
   end
 
   defp skip_entry(fingerprint, nil), do: fingerprint
 
   defp write_skips(cfile, entries) do
-    if Sobelow.get_env(:legacy_skips) do
-      append_skips(cfile, entries)
-    else
-      rewrite_skips(cfile, entries)
-    end
+    Sobelow.SafeWrite.transaction!(cfile, fn ->
+      existing =
+        case read_skips(cfile) do
+          {:ok, lines} -> lines
+          {:error, reason} -> raise Sobelow.ScanError, read_error(cfile, reason)
+        end
+
+      known = MapSet.new(existing, &entry_fingerprint/1)
+      entries = Enum.reject(entries, &MapSet.member?(known, entry_fingerprint(&1)))
+
+      cond do
+        entries == [] -> :ok
+        Sobelow.get_env(:legacy_skips) -> append_skips(cfile, entries)
+        true -> rewrite_skips(cfile, existing, entries)
+      end
+    end)
   end
 
   # `--legacy-skips` preserves the historical append-only behaviour.
@@ -83,20 +107,23 @@ defmodule Sobelow.SkipFile do
     end
   end
 
+  defp read_skips(cfile) do
+    case File.read(cfile) do
+      {:ok, contents} ->
+        {:ok, contents |> String.split("\n") |> Enum.map(&String.trim/1)}
+
+      {:error, :enoent} ->
+        {:ok, []}
+
+      error ->
+        error
+    end
+  end
+
+  defp read_error(path, reason), do: "Could not read #{path}: #{:file.format_error(reason)}"
+
   # Merge before sorting so repeated scans keep the entire file ordered.
-  defp rewrite_skips(cfile, entries) do
-    existing =
-      case File.read(cfile) do
-        {:ok, contents} ->
-          contents |> String.split("\n") |> Enum.map(&String.trim/1)
-
-        {:error, :enoent} ->
-          []
-
-        {:error, reason} ->
-          raise Sobelow.ScanError, "Could not read #{cfile}: #{:file.format_error(reason)}"
-      end
-
+  defp rewrite_skips(cfile, existing, entries) do
     lines =
       (existing ++ entries)
       |> Enum.reject(&(&1 == ""))
@@ -135,26 +162,13 @@ defmodule Sobelow.SkipFile do
     end
   end
 
-  defp load_ignored_fingerprints({:ok, line}, iofile) do
-    line_str = to_string(line) |> String.trim()
+  defp entry_fingerprint("#" <> _), do: nil
 
-    # Accept both bare hashes and type,filename:line,hash entries.
-    fingerprint =
-      case String.split(line_str, ",") do
-        [fingerprint] when fingerprint != "" ->
-          fingerprint
-
-        [_type, _filename_line_n, fingerprint] when fingerprint != "" ->
-          fingerprint
-
-        _ ->
-          nil
-      end
-
-    if fingerprint, do: Fingerprint.put_ignore(fingerprint)
-    :file.read_line(iofile) |> load_ignored_fingerprints(iofile)
+  defp entry_fingerprint(line) do
+    case String.split(line, ",") do
+      [fingerprint] when fingerprint != "" -> fingerprint
+      [_type, _location, fingerprint] when fingerprint != "" -> fingerprint
+      _ -> nil
+    end
   end
-
-  defp load_ignored_fingerprints(:eof, _), do: nil
-  defp load_ignored_fingerprints(_, _), do: nil
 end

@@ -17,6 +17,8 @@ defmodule Sobelow.XSS.Raw do
   @uid 30
   @finding_type "XSS.Raw: XSS"
 
+  alias Sobelow.Parse.Calls
+
   use Sobelow.Finding
 
   def run(fun, meta_file, _, nil) do
@@ -34,9 +36,8 @@ defmodule Sobelow.XSS.Raw do
         template_paths(filename, controller, template_name(template))
       end)
 
-    # Take one snapshot per function, containing only its possible templates.
-    # Earlier renders can delete raw entries; later renders in this function
-    # must still see the snapshot used by the historical correlation logic.
+    # Every render sees the same prepared evidence. Consuming raw expressions
+    # here would make later correlations depend on worker order and filtering.
     templates = if paths == [], do: %{}, else: Sobelow.MetaLog.get_templates(paths)
 
     Enum.each(vars, fn {finding, {template, ref_vars, vars}} ->
@@ -51,7 +52,6 @@ defmodule Sobelow.XSS.Raw do
           var = "@#{var}"
 
           if Enum.member?(raw_vals, var) do
-            Sobelow.MetaLog.delete_raw(var, template_path)
             t_name = String.replace_prefix(Path.expand(template_path, ""), "/", "")
             add_finding(t_name, line_no, filename, fun_name, fun, var, :high, finding)
           end
@@ -61,7 +61,6 @@ defmodule Sobelow.XSS.Raw do
           var = "@#{var}"
 
           if Enum.member?(raw_vals, var) do
-            Sobelow.MetaLog.delete_raw(var, template_path)
             t_name = String.replace_prefix(Path.expand(template_path, ""), "/", "")
             add_finding(t_name, line_no, filename, fun_name, fun, var, :medium, finding)
           end
@@ -112,7 +111,7 @@ defmodule Sobelow.XSS.Raw do
     pipefuns =
       Parse.get_pipe_funs(fun)
       |> Enum.map(fn {_, _, opts} -> Enum.at(opts, 1) end)
-      |> Enum.flat_map(&Parse.get_funs_of_type(&1, :render))
+      |> Enum.flat_map(&Calls.get_piped_funs_of_type(&1, :render))
 
     pipevars =
       pipefuns

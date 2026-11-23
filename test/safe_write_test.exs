@@ -52,6 +52,41 @@ defmodule Sobelow.SafeWriteTest do
   end
 
   @tag :tmp_dir
+  test "an active writer blocks a competing clear, which can retry after cleanup", %{tmp_dir: dir} do
+    parent = self()
+    path = Path.join(dir, ".sobelow-skips")
+
+    writer =
+      Task.async(fn ->
+        SafeWrite.transaction!(path, fn ->
+          send(parent, {:locked, self()})
+          receive do: (:publish -> SafeWrite.write!(path, "reviewed\n"))
+        end)
+      end)
+
+    assert_receive {:locked, pid}, 1_000
+    assert_raise Sobelow.ScanError, ~r/is locked/, fn -> Sobelow.SkipFile.clear(dir <> "/") end
+    send(pid, :publish)
+    assert Task.await(writer) == :ok
+    assert File.read!(path) == "reviewed\n"
+    assert :ok = Sobelow.SkipFile.clear(dir <> "/")
+    assert :ok = Sobelow.SkipFile.clear(dir <> "/")
+    assert File.ls!(dir) == []
+  end
+
+  @tag :tmp_dir
+  test "replacement respects a symlinked directory followed by dot-dot", %{tmp_dir: dir} do
+    File.mkdir_p!(Path.join(dir, "physical/child"))
+    File.ln_s!("physical/child", Path.join(dir, "alias"))
+    File.ln_s!("alias/../config", Path.join(dir, "link"))
+    File.write!(Path.join(dir, "config"), "wrong target")
+
+    assert :ok = SafeWrite.write(Path.join(dir, "link"), "replacement")
+    assert File.read!(Path.join(dir, "physical/config")) == "replacement"
+    assert File.read!(Path.join(dir, "config")) == "wrong target"
+  end
+
+  @tag :tmp_dir
   test "new files and dangling symlinks can be written atomically", %{tmp_dir: dir} do
     path = Path.join(dir, "created")
     link = Path.join(dir, "link")

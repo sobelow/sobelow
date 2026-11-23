@@ -11,26 +11,27 @@ defmodule Sobelow.Scanner do
   alias Sobelow.Vuln
 
   def run(categories, version) do
-    Scan.with_scan(fn -> do_run(categories, version) end)
+    Scan.exclusive(fn ->
+      project_root = Sobelow.get_env(:root) <> "/"
+
+      if Sobelow.get_env(:clear_skip) do
+        SkipFile.clear(project_root)
+      else
+        Scan.with_scan(fn -> do_run(project_root, categories, version) end)
+      end
+    end)
   end
 
-  defp do_run(categories, version) do
-    project_root = Sobelow.get_env(:root) <> "/"
+  defp do_run(project_root, categories, version) do
     version_check(version)
     project = Discovery.prepare(project_root, categories)
     allowed = project.allowed
     init_state(project_root, project.templates)
 
-    if Sobelow.get_env(:clear_skip) do
-      SkipFile.clear(project_root)
-      System.halt(0)
-    end
-
     if Sobelow.format() not in ["quiet", "compact", "flycheck", "json", "github"],
       do: IO.puts(:stderr, print_banner(version))
 
-    Application.put_env(:sobelow, :app_name, project.app_name)
-    Scan.configure(categories)
+    Scan.configure(categories, %{app_name: project.app_name}, project.ignored_checks)
 
     # These are single units of work, run without a task timeout.
     if Config in allowed,
@@ -59,6 +60,7 @@ defmodule Sobelow.Scanner do
       end)
     end
 
+    Scan.finish_discovery()
     Scan.print_summary(Sobelow.get_env(:summary))
 
     if Sobelow.format() != "txt" do
@@ -86,7 +88,10 @@ defmodule Sobelow.Scanner do
       end,
       timeout: :infinity
     )
-    |> Stream.run()
+    |> Enum.each(fn
+      {:ok, _} -> :ok
+      {:exit, reason} -> exit(reason)
+    end)
   end
 
   defp init_state(project_root, template_meta_files) do

@@ -88,6 +88,25 @@ defmodule Sobelow.FunctionAnalysisTest do
     assert FunctionAnalysis.with_fun(fun, collect) == expected
   end
 
+  test "a bare pipe sink sees aliases before a later reassignment" do
+    fun =
+      Code.string_to_quoted!("""
+      def show(param) do
+        local = param
+        local |> render
+        local = unrelated()
+      end
+      """)
+
+    collect = fn ->
+      Sobelow.Finding.init("Test: confidence", "file.ex")
+      |> Sobelow.Finding.multi_from_def(fun, Parse.get_fun_vars_and_meta(fun, 0, :render, nil))
+    end
+
+    assert [%{confidence: :high, vuln_variable: :local}] = collect.()
+    assert FunctionAnalysis.with_fun(fun, collect) == collect.()
+  end
+
   test "existing source fixtures retain sink selection and full finding structs" do
     targets = [
       {:read, 0, [:File]},

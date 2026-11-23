@@ -169,7 +169,7 @@ Other useful flags:
   on stderr. SARIF includes file failures in invocation notifications.
 - `--summary` — print file counts on stderr without changing JSON findings.
   Counts cover discovered source/template files and selected configuration
-  paths. `scanned` means successfully parsed; `pending` means discovered but
+  paths. `scanned` means successfully parsed; `unselected` means discovered but
   not parsed by an enabled check. Metadata reads such as dependency mixfiles
   are cached but are not counted as scanned project source.
 - `--no-router` — for a project with no Phoenix router, such as a plain Elixir

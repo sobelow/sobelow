@@ -152,13 +152,19 @@ defmodule Mix.Tasks.Sobelow do
 
   @aliases [v: :verbose, r: :root, i: :ignore, d: :details, f: :format]
 
-  # These pick what Sobelow *does* instead of configuring a scan, and every one
-  # of them ends the run before a scan happens. `.sobelow-conf` is read
-  # automatically and committed to the repository, so honouring one from the
-  # file means a checked-in file can stop the scanner from ever scanning —
-  # `version: true` prints the version and exits 0, which a CI gate reads as a
-  # clean scan. They are accepted on the command line only.
-  @cli_only_actions [:version, :details, :all_details, :save_config, :diff]
+  # `.sobelow-conf` can configure a scan, but it cannot select an action that
+  # replaces the scan or mutates its baseline. For example, a checked-in
+  # `version: true` would exit 0 without scanning, and `mark_skip_all: true`
+  # would change the baseline without an explicit CLI request.
+  @cli_only_actions [
+    :version,
+    :details,
+    :all_details,
+    :save_config,
+    :diff,
+    :clear_skip,
+    :mark_skip_all
+  ]
 
   # For escript entry
   def main(argv) do
@@ -166,11 +172,15 @@ defmodule Mix.Tasks.Sobelow do
   end
 
   def run(argv) do
+    Sobelow.Scan.exclusive(fn -> dispatch(argv) end)
+  end
+
+  defp dispatch(argv) do
     {opts, args, invalid} = OptionParser.parse(argv, aliases: @aliases, strict: @switches)
 
     # A bare `--exit` has always meant `--exit low`. OptionParser reports a
     # missing string value as invalid, so retain that one legacy spelling.
-    invalid = Enum.reject(invalid, &(&1 == {"--exit", nil}))
+    {bare_exit, invalid} = Enum.split_with(invalid, &(&1 == {"--exit", nil}))
 
     if args != [] or invalid != [] do
       fail("Invalid Sobelow arguments: #{inspect(args ++ invalid)}")
@@ -179,19 +189,20 @@ defmodule Mix.Tasks.Sobelow do
     root = Keyword.get(opts, :root, ".")
     config = Keyword.get(opts, :config, true)
     conf_file = root <> "/.sobelow-conf"
-    conf_file? = config && File.exists?(conf_file)
+    save_config = Keyword.get(opts, :save_config)
+    snapshot = if config || save_config, do: read_config_snapshot(conf_file)
 
     opts =
-      if is_nil(Keyword.get(opts, :exit)) && Enum.member?(argv, "--exit") do
+      if is_nil(Keyword.get(opts, :exit)) && bare_exit != [] do
         [{:exit, "low"} | opts]
       else
         opts
       end
 
     opts =
-      if conf_file? do
-        # CLI args take precedence
-        Keyword.merge(config_settings(conf_file), opts)
+      if config && match?({:ok, _}, snapshot) do
+        {:ok, contents} = snapshot
+        merge_settings(config_settings(conf_file, contents), opts)
       else
         opts
       end
@@ -230,8 +241,6 @@ defmodule Mix.Tasks.Sobelow do
     set_env(:threshold, threshold)
     set_env(:version, version)
 
-    save_config = Keyword.get(opts, :save_config)
-
     if function_exported?(Mix, :ensure_application!, 1) do
       Mix.ensure_application!(:ssl)
       Mix.ensure_application!(:inets)
@@ -245,10 +254,10 @@ defmodule Mix.Tasks.Sobelow do
 
       # coveralls-ignore-stop
 
-      !is_nil(save_config) ->
-        Sobelow.save_config(conf_file)
+      save_config ->
+        Sobelow.save_config(conf_file, snapshot)
 
-      !is_nil(all_details) ->
+      all_details ->
         Sobelow.all_details()
 
       !is_nil(details) ->
@@ -271,6 +280,23 @@ defmodule Mix.Tasks.Sobelow do
       IO.puts(:stderr, message)
       System.halt(1)
     end
+  end
+
+  defp merge_settings(config, cli) do
+    aliases = [
+      [:format, :quiet, :compact, :flycheck],
+      [:router, :no_router],
+      [:verbose, :with_code]
+    ]
+
+    config =
+      Enum.reduce(aliases, config, fn group, settings ->
+        if Enum.any?(group, &Keyword.has_key?(cli, &1)),
+          do: Keyword.drop(settings, group),
+          else: settings
+      end)
+
+    Keyword.merge(config, cli)
   end
 
   defp validate_scan_options!(opts) do
@@ -309,17 +335,47 @@ defmodule Mix.Tasks.Sobelow do
   # coveralls-ignore-start
   # Developer-only external comparison, outside the instrumented scan pipeline.
   def run_diff(argv) do
-    diff_idx = Enum.find_index(argv, fn i -> i === "--diff" end)
-    {_, list} = List.pop_at(argv, diff_idx)
-    {diff_target, list} = List.pop_at(list, diff_idx)
-    args = Enum.join(list, " ")
-    diff_target = to_string(diff_target)
-    System.shell("mix sobelow #{args} > sobelow.tempdiff")
-    {diff, _} = System.shell("diff sobelow.tempdiff #{diff_target}")
-    IO.puts(diff)
+    {target, args} = diff_args(argv)
+
+    dir =
+      Path.join(
+        System.tmp_dir!(),
+        "sobelow-diff-" <> Base.encode16(:crypto.strong_rand_bytes(12))
+      )
+
+    File.mkdir!(dir)
+
+    try do
+      case System.cmd("mix", ["sobelow" | args]) do
+        {output, 0} ->
+          path = Path.join(dir, "scan")
+          File.write!(path, output)
+
+          case System.cmd("diff", ["--", path, Path.expand(target)]) do
+            {diff, status} when status in [0, 1] -> IO.write(diff)
+            {_, status} -> fail("Could not compare Sobelow output: diff exited #{status}.")
+          end
+
+        {_, status} ->
+          fail("Could not compare Sobelow output: scan exited #{status}.")
+      end
+    after
+      File.rm_rf(dir)
+    end
   end
 
   # coveralls-ignore-stop
+
+  @doc false
+  def diff_args(argv), do: diff_args(argv, nil, [])
+
+  # Dispatch already validated argv. A separated option value cannot start with
+  # `-`; an attached value (e.g. --out=--diff=file) remains one untouched token.
+  defp diff_args(["--diff", target | rest], _previous, acc), do: diff_args(rest, target, acc)
+  defp diff_args(["--diff=" <> target | rest], _previous, acc), do: diff_args(rest, target, acc)
+  defp diff_args(["--" | _] = rest, target, acc), do: {target, Enum.reverse(acc, rest)}
+  defp diff_args([arg | rest], target, acc), do: diff_args(rest, target, [arg | acc])
+  defp diff_args([], target, acc), do: {target, Enum.reverse(acc)}
 
   def set_env(key, value) do
     Application.put_env(:sobelow, key, value)
@@ -327,8 +383,14 @@ defmodule Mix.Tasks.Sobelow do
 
   @doc false
   def read_config_file(conf_file) do
-    with {:ok, contents} <- File.read(conf_file),
-         {:ok, opts} <- Code.string_to_quoted(contents),
+    case File.read(conf_file) do
+      {:ok, contents} -> parse_config_file(conf_file, contents)
+      {:error, _} -> {:error, config_file_error(conf_file)}
+    end
+  end
+
+  defp parse_config_file(conf_file, contents) do
+    with {:ok, opts} <- Code.string_to_quoted(contents),
          {:ok, opts} <- validate_config(opts) do
       {:ok, opts}
     else
@@ -356,7 +418,15 @@ defmodule Mix.Tasks.Sobelow do
   # `--save-config` generated, so warning about it would fire for a great many
   # existing projects that have nothing wrong with them.
   def config_settings(conf_file) do
+    case read_config_snapshot(conf_file) do
+      {:ok, contents} -> config_settings(conf_file, contents)
+      {:error, :enoent} -> fail(config_file_error(conf_file))
+    end
+  end
+
+  defp config_settings(conf_file, contents) do
     conf_file
+    |> parse_config_file(contents)
     |> load_config_file()
     |> Enum.reject(fn {key, value} ->
       if key in @cli_only_actions do
@@ -379,14 +449,14 @@ defmodule Mix.Tasks.Sobelow do
     """)
   end
 
-  defp load_config_file(conf_file) do
-    case read_config_file(conf_file) do
-      {:ok, opts} ->
-        opts
+  defp load_config_file({:ok, opts}), do: opts
+  defp load_config_file({:error, message}), do: fail(message)
 
-      {:error, message} ->
-        Sobelow.IO.error(message)
-        System.halt(1)
+  defp read_config_snapshot(conf_file) do
+    case File.read(conf_file) do
+      {:error, :enoent} = absent -> absent
+      {:ok, _} = existing -> existing
+      {:error, _} -> fail(config_file_error(conf_file))
     end
   end
 

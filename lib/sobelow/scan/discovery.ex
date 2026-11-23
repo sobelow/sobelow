@@ -2,6 +2,8 @@ defmodule Sobelow.Scan.Discovery do
   @moduledoc false
 
   alias Sobelow.Parse
+  alias Sobelow.Parse.Metadata
+  alias Sobelow.Scan
   alias Sobelow.Utils
 
   def prepare(project_root, categories) do
@@ -21,45 +23,45 @@ defmodule Sobelow.Scan.Discovery do
     ignored = Sobelow.get_ignored()
     allowed = categories -- ignored
 
-    # Prepare source and template metadata before checks emit findings.
-    root_meta_files = get_meta_files(lib_root)
-    template_meta_files = get_meta_templates(lib_root)
+    source_paths = Utils.all_files(lib_root)
 
-    {libroot_meta_files, tmp_default_router} =
-      if phx_post_1_2? do
-        {[], ""}
-      else
-        libroot_meta_files = get_meta_files(project_root <> "lib")
-        default_router = project_root <> "/web/router.ex"
+    {lib_paths, tmp_default_router} =
+      if phx_post_1_2?,
+        do: {[], ""},
+        else: {Utils.all_files(project_root <> "lib"), project_root <> "/web/router.ex"}
 
-        {libroot_meta_files, default_router}
-      end
-
-    extra_meta_files =
+    extra_paths =
       if Sobelow.get_env(:include_scripts) do
         ["scripts", "priv"]
         |> Enum.map(&(project_root <> &1))
         |> Enum.filter(&File.dir?/1)
-        |> Enum.flat_map(&get_meta_files/1)
+        |> Enum.flat_map(&Utils.all_files/1)
       else
         []
       end
 
-    if root_meta_files == [] and libroot_meta_files == [] and extra_meta_files == [] do
+    if source_paths == [] and lib_paths == [] and extra_paths == [] do
       raise Sobelow.ScanError,
             "No source files were found under the scan root. Check --root and source path options."
     end
 
+    # Prepare metadata before checks emit findings. Ignoring every source is
+    # a valid selection, not the same as discovering no sources at all.
+    root_meta_files = get_meta_files(source_paths)
+    template_meta_files = get_meta_templates(lib_root)
+    libroot_meta_files = get_meta_files(lib_paths)
+    extra_meta_files = get_meta_files(extra_paths)
     default_router = get_router(tmp_default_router, phx_post_1_2?)
 
     {routers, endpoints} =
       get_phoenix_files(root_meta_files ++ libroot_meta_files, default_router)
 
-    if Enum.empty?(routers), do: no_router()
+    ignored_checks = if routers == [], do: no_router(), else: []
 
     %{
       app_name: app_name,
       allowed: allowed,
+      ignored_checks: ignored_checks,
       files: root_meta_files ++ libroot_meta_files ++ extra_meta_files,
       templates: template_meta_files,
       routers: routers,
@@ -111,11 +113,14 @@ defmodule Sobelow.Scan.Discovery do
 
     uniq_phoenix_files =
       if File.exists?(router) do
-        Sobelow.Scan.discover([router], fn _ -> false end)
+        ignored? = &Scan.ignored_file?(&1, Sobelow.get_env(:ignored_files) || [])
+        Scan.discover([router], ignored?)
 
-        Map.update!(phoenix_files, :routers, fn routers ->
-          Enum.uniq(routers ++ [router])
-        end)
+        if ignored?.(router) do
+          phoenix_files
+        else
+          Map.update!(phoenix_files, :routers, &Enum.uniq(&1 ++ [router]))
+        end
       else
         phoenix_files
       end
@@ -127,8 +132,8 @@ defmodule Sobelow.Scan.Discovery do
     ignored_files = Sobelow.get_env(:ignored_files)
 
     Utils.template_files(root)
-    |> Sobelow.Scan.discover(&ignored_file?(&1, ignored_files))
-    |> Enum.reject(&ignored_file?(&1, ignored_files))
+    |> Sobelow.Scan.discover(&Scan.ignored_file?(&1, ignored_files || []))
+    |> Enum.reject(&Scan.ignored_file?(&1, ignored_files || []))
     |> Sobelow.Scan.map(&get_template_meta/1)
     |> Map.new()
   end
@@ -150,12 +155,12 @@ defmodule Sobelow.Scan.Discovery do
     }
   end
 
-  defp get_meta_files(root) do
+  defp get_meta_files(paths) do
     ignored_files = Sobelow.get_env(:ignored_files)
 
-    Utils.all_files(root)
-    |> Sobelow.Scan.discover(&ignored_file?(&1, ignored_files))
-    |> Enum.reject(&ignored_file?(&1, ignored_files))
+    paths
+    |> Scan.discover(&Scan.ignored_file?(&1, ignored_files || []))
+    |> Enum.reject(&Scan.ignored_file?(&1, ignored_files || []))
     |> Sobelow.Scan.map(&get_file_meta/1)
   end
 
@@ -166,16 +171,28 @@ defmodule Sobelow.Scan.Discovery do
     use_funs = meta_funs.use_funs
     import_funs = meta_funs.import_funs
 
-    lexical = Sobelow.Lexical.functions(ast)
+    lexical =
+      Map.new(Sobelow.Lexical.functions(ast), fn {fun, scope} ->
+        {Metadata.definition_key(fun), scope}
+      end)
+
+    skips = Metadata.function_skips(ast)
 
     scan_contexts =
       Enum.map(contexts, fn context ->
         functions =
           context.def_funs
-          |> combine_skips()
-          |> Enum.map(fn
-            {fun, _skips} = skipped -> {skipped, Map.get(lexical, fun)}
-            fun -> {fun, Map.get(lexical, fun)}
+          |> Enum.filter(&Metadata.definition_key/1)
+          |> Enum.map(fn fun ->
+            key = Metadata.definition_key(fun)
+
+            annotated =
+              case Map.get(skips, key) do
+                nil -> fun
+                checks -> {fun, checks}
+              end
+
+            {annotated, Map.get(lexical, key)}
           end)
 
         %{
@@ -201,23 +218,6 @@ defmodule Sobelow.Scan.Discovery do
     }
   end
 
-  defp combine_skips([]), do: []
-
-  defp combine_skips([head | tail] = funs) do
-    if Sobelow.get_env(:skip), do: combine_skips(head, tail), else: funs
-  end
-
-  defp combine_skips(prev, []), do: [prev]
-  defp combine_skips(prev, [{:@, _, [{:sobelow_skip, _, [skips]}]} | []]), do: [{prev, skips}]
-
-  defp combine_skips(prev, [{:@, _, [{:sobelow_skip, _, [skips]}]}, h | t]) do
-    [{prev, skips} | combine_skips(h, t)]
-  end
-
-  defp combine_skips(prev, [h | t]) do
-    [prev | combine_skips(h, t)]
-  end
-
   defp no_router do
     message = """
     WARNING: Sobelow cannot find the router. If this is a Phoenix application
@@ -226,15 +226,7 @@ defmodule Sobelow.Scan.Discovery do
 
     if !router_disabled?(), do: IO.puts(:stderr, message)
 
-    # The router checks are dropped either way — without a router there is
-    # nothing for them to inspect.
-    ignored = Sobelow.get_env(:ignored)
-
-    Application.put_env(
-      :sobelow,
-      :ignored,
-      ignored ++ ["Config.CSRF", "Config.CSRFRoute", "Config.Headers", "Config.CSP"]
-    )
+    [Sobelow.Config.CSRF, Sobelow.Config.CSRFRoute, Sobelow.Config.Headers, Sobelow.Config.CSP]
   end
 
   defp file_error do
@@ -244,11 +236,5 @@ defmodule Sobelow.Scan.Discovery do
     """
 
     raise Sobelow.ScanError, message
-  end
-
-  defp ignored_file?(filename, ignored_files) do
-    Enum.any?(ignored_files, fn ignored_file ->
-      String.ends_with?(ignored_file, filename)
-    end)
   end
 end

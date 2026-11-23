@@ -118,7 +118,7 @@ relative to the application root.
   * `--private` - Skip update checks.
 
   * `--summary` - Print discovered, scanned, ignored, unreadable, unparseable,
-  and pending file counts on stderr. JSON findings keep their existing fields.
+  and unselected file counts on stderr. JSON findings keep their existing fields.
   Non-strict scans warn when source or templates cannot be read or parsed;
   SARIF also includes these warnings as invocation notifications.
 

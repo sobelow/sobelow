@@ -2,6 +2,29 @@ defmodule Sobelow.Scan do
   @moduledoc false
   @key {__MODULE__, :table}
   @options_key {__MODULE__, :options}
+  @lock_key {__MODULE__, :exclusive}
+
+  # The CLI environment and the named collectors are shared within this VM.
+  # Workers participate in their owner's scan, never in the top-level lock.
+  def exclusive(fun) do
+    if Process.get(@lock_key) do
+      fun.()
+    else
+      :global.trans(
+        {@lock_key, self()},
+        fn ->
+          Process.put(@lock_key, true)
+
+          try do
+            fun.()
+          after
+            Process.delete(@lock_key)
+          end
+        end,
+        [node()]
+      )
+    end
+  end
 
   def with_scan(fun) do
     table = :ets.new(__MODULE__, [:set, :public, read_concurrency: true, write_concurrency: true])
@@ -39,9 +62,9 @@ defmodule Sobelow.Scan do
     end
   end
 
-  def configure(categories) do
-    env = Map.new(Application.get_all_env(:sobelow))
-    ignored = Sobelow.ignored_modules()
+  def configure(categories, overrides \\ %{}, ignored_checks \\ []) do
+    env = Map.merge(Map.new(Application.get_all_env(:sobelow)), overrides)
+    ignored = Enum.uniq(Sobelow.ignored_modules() ++ ignored_checks)
     {_, ignored_fingerprints} = Sobelow.Fingerprint.value()
 
     checks =
@@ -136,8 +159,12 @@ defmodule Sobelow.Scan do
         [] ->
           count_miss(table, key)
           value = fun.()
-          :ets.insert(table, {{:cache, key}, value})
-          value
+
+          if :ets.insert_new(table, {{:cache, key}, value}) do
+            value
+          else
+            :ets.lookup_element(table, {:cache, key}, 2)
+          end
       end
     else
       fun.()
@@ -145,6 +172,10 @@ defmodule Sobelow.Scan do
   end
 
   def source(path), do: fetch({:source, Path.expand(path)}, fn -> File.read(path) end)
+
+  def ignored_file?(path, ignored_files) do
+    Path.expand(path) in ignored_files
+  end
 
   def discover(paths, ignored?) do
     if table = current() do
@@ -160,19 +191,34 @@ defmodule Sobelow.Scan do
   def record(path, status, message \\ nil) do
     if table = current() do
       key = {:file, Path.expand(path)}
-      if :ets.member(table, key), do: :ets.insert(table, {key, status, message})
+      # A secondary consumer cannot undo an ignore or a parse diagnostic.
+      from = if status == :unparseable, do: [:pending, :scanned], else: [:pending]
+
+      Enum.each(from, fn previous ->
+        :ets.select_replace(table, [{{key, previous, :_}, [], [{:const, {key, status, message}}]}])
+      end)
     end
 
     :ok
+  end
+
+  def finish_discovery do
+    :ets.select_replace(current(), [
+      {{{:file, :"$1"}, :pending, nil}, [], [{{{{:file, :"$1"}}, :unselected, nil}}]}
+    ])
   end
 
   def report do
     files = if table = current(), do: :ets.match_object(table, {{:file, :_}, :_, :_}), else: []
 
     counts =
-      Enum.reduce(files, %{scanned: 0, ignored: 0, unreadable: 0, unparseable: 0, pending: 0}, fn
-        {_, status, _}, counts -> Map.update!(counts, status, &(&1 + 1))
-      end)
+      Enum.reduce(
+        files,
+        %{scanned: 0, ignored: 0, unreadable: 0, unparseable: 0, pending: 0, unselected: 0},
+        fn
+          {_, status, _}, counts -> Map.update!(counts, status, &(&1 + 1))
+        end
+      )
 
     diagnostics =
       files
@@ -202,7 +248,7 @@ defmodule Sobelow.Scan do
     if enabled? do
       fields =
         Enum.map_join(
-          [:discovered, :scanned, :ignored, :unreadable, :unparseable, :pending],
+          [:discovered, :scanned, :ignored, :unreadable, :unparseable, :pending, :unselected],
           ", ",
           fn key -> "#{key}: #{counts[key]}" end
         )

@@ -19,7 +19,7 @@ defmodule Sobelow.FindingLog do
         fun.()
       after
         batch = Process.delete(@batch_key)
-        if batch.entries != [], do: GenServer.cast(__MODULE__, {:add_batch, batch})
+        if batch.entries != [], do: GenServer.call(__MODULE__, {:add_batch, batch}, :infinity)
       end
     end
   end
@@ -45,7 +45,7 @@ defmodule Sobelow.FindingLog do
     if Process.get(@batch_key) do
       Process.put(@batch_key, batch)
     else
-      GenServer.cast(__MODULE__, {:add_batch, batch})
+      GenServer.call(__MODULE__, {:add_batch, batch}, :infinity)
     end
 
     :ok
@@ -233,7 +233,7 @@ defmodule Sobelow.FindingLog do
      }}
   end
 
-  def handle_cast({:add_batch, batch}, state) do
+  def handle_call({:add_batch, batch}, _from, state) do
     {findings, counts} =
       Enum.reduce(Enum.reverse(batch.entries), {state.findings, state.counts}, fn {severity,
                                                                                    entry},
@@ -242,7 +242,7 @@ defmodule Sobelow.FindingLog do
         {Map.update!(findings, severity, &[entry | &1]), Map.update!(counts, severity, &(&1 + 1))}
       end)
 
-    {:noreply,
+    {:reply, :ok,
      %{
        state
        | findings: findings,

@@ -68,7 +68,7 @@ grep -q 'broken.ex' "$scan_tmp/stderr"
 rm "$scan_tmp/app/lib/broken.ex"
 
 mkdir -p "$scan_tmp/app/lib/basic_web/templates/page"
-printf '<%%= raw(' > "$scan_tmp/app/lib/basic_web/templates/page/broken.html.eex"
+printf '<%%= (1 %%>' > "$scan_tmp/app/lib/basic_web/templates/page/broken.html.eex"
 expect_status 2 --private --root "$scan_tmp/app" --strict
 grep -q 'broken.html.eex' "$scan_tmp/stderr"
 rm "$scan_tmp/app/lib/basic_web/templates/page/broken.html.eex"
@@ -78,10 +78,11 @@ expect_status 2 --private --root "$scan_tmp/app" --strict
 grep -q 'broken_inline.ex' "$scan_tmp/stderr"
 rm "$scan_tmp/app/lib/broken_inline.ex"
 
-printf 'reviewed-fingerprint\n' > "$scan_tmp/app/.sobelow-skips"
-expect_status 0 --private --root "$scan_tmp/app" --clear-skip
-test ! -e "$scan_tmp/app/.sobelow-skips"
-expect_status 0 --private --root "$scan_tmp/app" --clear-skip
+mkdir "$scan_tmp/baseline-only"
+printf 'reviewed-fingerprint\n' > "$scan_tmp/baseline-only/.sobelow-skips"
+expect_status 0 --private --root "$scan_tmp/baseline-only" --clear-skip
+test ! -e "$scan_tmp/baseline-only/.sobelow-skips"
+expect_status 0 --private --root "$scan_tmp/baseline-only" --clear-skip
 
 printf '[invalid(\n' > "$scan_tmp/app/.sobelow-conf"
 expect_status 1 --private --root "$scan_tmp/app"
