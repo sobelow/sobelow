@@ -64,7 +64,7 @@ defmodule Sobelow.FunctionAnalysis do
     Enum.reduce(statements, {%{}, %{}}, fn statement, {nodes, aliases} ->
       {_, nodes} =
         Macro.prewalk(statement, nodes, fn
-          {_, _, args} = node, nodes when is_list(args) ->
+          {_, _, _} = node, nodes ->
             {node, Map.put_new(nodes, node, aliases)}
 
           node, nodes ->

@@ -105,6 +105,33 @@ defmodule Sobelow.EffectiveConfigTest do
     end
   end
 
+  test "ignored endpoint config cannot replace an earlier origin default" do
+    temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
+    defmodule BasicWeb.Endpoint do
+      use Phoenix.Endpoint, otp_app: :basic
+      socket "/live", Phoenix.LiveView.Socket
+    end
+    """)
+
+    temp_fixture_file(
+      "basic",
+      "config/prod.exs",
+      "config :basic, BasicWeb.Endpoint, check_origin: false"
+    )
+
+    path =
+      temp_fixture_file(
+        "basic",
+        "config/runtime.exs",
+        "config :basic, BasicWeb.Endpoint, check_origin: true"
+      )
+
+    assert [] == scan("basic") |> findings_for("Config.CSWH")
+
+    assert [%{"confidence" => "high"}] =
+             scan("basic", ignored_files: [Path.expand(path)]) |> findings_for("Config.CSWH")
+  end
+
   test "disabled WebSockets and explicit origin checks override an unsafe endpoint default" do
     temp_fixture_file("basic", "lib/basic_web/endpoint.ex", """
     defmodule BasicWeb.Endpoint do

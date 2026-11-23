@@ -36,6 +36,34 @@ defmodule Sobelow.FindingCollectionTest do
     assert length(FindingLog.log().high) == 1
   end
 
+  test "a worker cannot finish before its finding batch is applied" do
+    parent = self()
+    finding = %Finding{type: "test", filename: "file.ex", vuln_line_no: 1, confidence: :low}
+    :ok = :sys.suspend(FindingLog)
+
+    worker =
+      try do
+        worker =
+          Task.async(fn ->
+            FindingLog.with_batch(fn ->
+              FindingLog.add({"test", finding, nil}, :low)
+              send(parent, :buffered)
+            end)
+
+            :finished
+          end)
+
+        assert_receive :buffered, 1_000
+        assert Task.yield(worker, 100) == nil
+        worker
+      after
+        :ok = :sys.resume(FindingLog)
+      end
+
+    assert Task.await(worker) == :finished
+    assert FindingLog.counts() == %{high: 0, medium: 0, low: 1}
+  end
+
   test "nested batching flushes partial work on exceptions" do
     finding = %Finding{type: "test", filename: "file.ex", vuln_line_no: 1, confidence: :low}
 

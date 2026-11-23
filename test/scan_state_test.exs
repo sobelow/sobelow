@@ -48,6 +48,35 @@ defmodule Sobelow.ScanStateTest do
     Scan.with_scan(fn -> assert Sobelow.Vuln.dependency_version(dir, "plug") == nil end)
   end
 
+  test "a competing scan waits for its predecessor, even when the predecessor raises" do
+    parent = self()
+
+    first =
+      Task.async(fn ->
+        assert_raise RuntimeError, "stop", fn ->
+          Scan.exclusive(fn ->
+            Scan.exclusive(fn -> send(parent, :first_entered) end)
+            receive do: (:release -> raise "stop")
+          end)
+        end
+      end)
+
+    assert_receive :first_entered, 1_000
+
+    second =
+      Task.async(fn ->
+        send(parent, :second_ready)
+        Scan.exclusive(fn -> send(parent, :second_entered) end)
+      end)
+
+    assert_receive :second_ready, 1_000
+    refute_receive :second_entered
+    send(first.pid, :release)
+    Task.await(first)
+    assert_receive :second_entered, 1_000
+    Task.await(second)
+  end
+
   test "parallel preparation retains order, shares cache and restores worker state" do
     Scan.with_scan(fn ->
       values =
@@ -100,6 +129,64 @@ defmodule Sobelow.ScanStateTest do
     Scan.with_scan(fn ->
       Scan.configure([Sobelow.Traversal])
       assert Sobelow.get_env(:threshold) == :high
+    end)
+  end
+
+  test "concurrent cache misses return the value that was published" do
+    parent = self()
+
+    Scan.with_scan(fn ->
+      table = Scan.current()
+
+      start = fn value ->
+        Task.async(fn ->
+          Scan.attach(table, fn ->
+            Scan.fetch(:shared, fn ->
+              send(parent, {:ready, self()})
+              receive do: (:publish -> value)
+            end)
+          end)
+        end)
+      end
+
+      first = start.(:first)
+      second = start.(:second)
+      assert_receive {:ready, pid}, 1_000
+      assert_receive {:ready, other}, 1_000
+      assert MapSet.new([pid, other]) == MapSet.new([first.pid, second.pid])
+
+      send(first.pid, :publish)
+      assert Task.await(first) == :first
+      send(second.pid, :publish)
+      assert Task.await(second) == :first
+      assert Scan.fetch(:shared, fn -> flunk("cache entry lost") end) == :first
+    end)
+  end
+
+  test "discovery finalizes unselected files without overwriting terminal states" do
+    Scan.with_scan(fn ->
+      Scan.discover(~w(ignored external parsed missing), &(&1 == "ignored"))
+      Scan.record("ignored", :unparseable, "should never parse")
+      Scan.record("parsed", :scanned)
+      Scan.record("parsed", :unparseable, "inline template")
+      Scan.record("parsed", :scanned)
+      Scan.record("missing", :unreadable, "missing")
+      Scan.finish_discovery()
+      Scan.finish_discovery()
+
+      assert %{counts: counts, diagnostics: diagnostics} = Scan.report()
+
+      assert counts == %{
+               discovered: 4,
+               ignored: 1,
+               pending: 0,
+               scanned: 0,
+               unreadable: 1,
+               unparseable: 1,
+               unselected: 1
+             }
+
+      assert Enum.map(diagnostics, & &1.message) == ["missing", "inline template"]
     end)
   end
 

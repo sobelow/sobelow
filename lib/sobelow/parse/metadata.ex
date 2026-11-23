@@ -157,6 +157,34 @@ defmodule Sobelow.Parse.Metadata do
   defp literal_module_name?({:__aliases__, _, parts}), do: Enum.all?(parts, &is_atom/1)
   defp literal_module_name?(name), do: is_atom(name)
 
+  # A definition's identity survives the metadata fallback that removes nested
+  # modules from its body. Source ASTs include both line and column metadata.
+  def definition_key({kind, meta, [_head | _]}) when kind in [:def, :defp],
+    do: {kind, meta}
+
+  def definition_key(_), do: nil
+
+  def function_skips(ast) do
+    if Sobelow.get_env(:skip) do
+      {_, skips} =
+        Macro.prewalk(ast, %{}, fn
+          {:__block__, _, statements} = node, skips ->
+            {node,
+             Enum.reduce(associate_skips(statements, [:def, :defp]), skips, fn
+               {definition, checks, _attrs}, acc ->
+                 Map.put(acc, definition_key(definition), checks)
+             end)}
+
+          node, skips ->
+            {node, skips}
+        end)
+
+      skips
+    else
+      %{}
+    end
+  end
+
   defp skip_attr?({:@, _, [{:sobelow_skip, _, _}]}), do: true
   defp skip_attr?(_), do: false
 
@@ -191,21 +219,22 @@ defmodule Sobelow.Parse.Metadata do
   end
 
   defp collect_skip_associations({:__block__, _, stmts} = ast, acc) when is_list(stmts) do
-    {ast, acc ++ associate_skips_with_pipelines(stmts)}
+    {ast, acc ++ associate_skips(stmts, [:pipeline])}
   end
 
   defp collect_skip_associations(ast, acc), do: {ast, acc}
 
-  # Only adjacent attributes in the same block bind to a pipeline. A pipeline
-  # with a skip always has a block containing both statements.
-  defp associate_skips_with_pipelines(statements) do
+  # Only adjacent attributes in the same block bind to the following statement.
+  defp associate_skips(statements, targets) do
     {associations, _pending} =
       Enum.reduce(statements, {[], []}, fn
         {:@, _, [{:sobelow_skip, _, [skips]}]} = attr, {acc, pending} when is_list(skips) ->
-          {acc, pending ++ [{attr, skips}]}
+          if Enum.all?(skips, &is_binary/1), do: {acc, [{attr, skips} | pending]}, else: {acc, []}
 
-        {:pipeline, _, _} = pipeline, {acc, pending} ->
-          {[{pipeline, pending} | acc], []}
+        {kind, _, _} = statement, {acc, pending} when pending != [] ->
+          if kind in targets,
+            do: {[{statement, Enum.reverse(pending)} | acc], []},
+            else: {acc, []}
 
         _, {acc, _pending} ->
           {acc, []}

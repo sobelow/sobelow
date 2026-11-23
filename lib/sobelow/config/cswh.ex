@@ -69,10 +69,12 @@ defmodule Sobelow.Config.CSWH do
 
       values =
         ["config.exs", "prod.exs", "runtime.exs"]
-        |> Enum.flat_map(fn file ->
+        |> Enum.map(&Path.join([root, "config", &1]))
+        |> Enum.reject(&Sobelow.Scan.ignored_file?(&1, Sobelow.get_env(:ignored_files) || []))
+        |> Enum.flat_map(fn path ->
           case Config.effective_endpoint_config(
                  :check_origin,
-                 Path.join([root, "config", file]),
+                 path,
                  module
                ) do
             {:ok, value} -> [value]

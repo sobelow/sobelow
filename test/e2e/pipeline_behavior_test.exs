@@ -19,6 +19,16 @@ defmodule Sobelow.PipelineBehaviorTest do
     end
   end
 
+  test "router omissions and application names do not leak into the next scan" do
+    assert scan("no_router", only: ["Config.CSRF"])["total_findings"] == 0
+    assert Sobelow.get_env(:ignored) == []
+
+    Application.put_env(:sobelow, :root, fixture_path("basic"))
+
+    stdout = ExUnit.CaptureIO.capture_io(fn -> Sobelow.run() end)
+    assert [_] = stdout |> Jason.decode!() |> findings_for("Config.CSRF")
+  end
+
   test "explicit legacy routers are resolved against the scanned root" do
     path =
       temp_fixture_file("no_router_legacy", "web/special_router.ex", """
@@ -48,6 +58,44 @@ defmodule Sobelow.PipelineBehaviorTest do
              scan("basic", skip: true)
              |> findings_for("Traversal.FileModule")
              |> Enum.filter(&String.ends_with?(&1["file"], path))
+  end
+
+  test "function skips bind to adjacent definitions in their own block only" do
+    path =
+      temp_fixture_file("basic", "lib/skip_boundaries.ex", """
+      defmodule SkipBoundaries do
+        # sobelow_skip ["Traversal.FileModule"]
+        @doc "Not part of the skip"
+        def after_doc(path), do: File.read(path)
+        def after_nested(path) do
+          if path do
+            # sobelow_skip ["Traversal.FileModule"]
+            :ok
+          end
+          File.read(path)
+        end
+        # sobelow_skip ["XSS.Raw"]
+        # sobelow_skip ["Traversal.FileModule"]
+        def skipped(path), do: File.read(path)
+        def later(path), do: File.read(path)
+      end
+      """)
+
+    assert scan("basic", skip: true)
+           |> findings_for("Traversal.FileModule")
+           |> Enum.filter(&String.ends_with?(&1["file"], path))
+           |> Enum.map(& &1["line"]) == [4, 10, 15]
+  end
+
+  test "an ignored explicit router is never parsed by config checks" do
+    path = temp_fixture_file("no_router", "custom.ex", "incomplete(")
+
+    {_, stderr} =
+      scan_io("no_router", router: "custom.ex", ignored_files: [Path.expand(path)], summary: true)
+
+    assert stderr =~ "ignored: 1"
+    assert stderr =~ "unparseable: 0"
+    refute stderr =~ "custom.ex"
   end
 
   test "malformed skip records are retained when new records are sorted" do

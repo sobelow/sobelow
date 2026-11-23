@@ -32,10 +32,10 @@ defmodule Sobelow.Parse.Template do
         :error
     end
   rescue
-    e in EEx.SyntaxError ->
+    e in [EEx.SyntaxError, SyntaxError, TokenMissingError] ->
       Sobelow.Scan.record(filepath, :unparseable, Exception.message(e))
 
-      if Application.get_env(:sobelow, :strict) do
+      if Sobelow.get_env(:strict) do
         IO.puts(:stderr, Exception.message(e))
         System.halt(2)
       else
@@ -77,7 +77,7 @@ defmodule Sobelow.Parse.Template do
   defp inline_heex_ast(source, file, line) do
     Sobelow.HEEx.ast(source, file, line)
   rescue
-    e in EEx.SyntaxError ->
+    e in [EEx.SyntaxError, SyntaxError, TokenMissingError] ->
       Sobelow.Scan.record(file, :unparseable, Exception.message(e))
 
       if Sobelow.get_env(:strict) do
@@ -170,7 +170,8 @@ defmodule Sobelow.Parse.Template do
   end
 
   def parse_render_opts({:render, _, opts}, params, idx) do
-    {_, vars} = Macro.prewalk(opts, [], &extract_render_opts/2)
+    vars = Enum.at(opts || [], idx + 1)
+    vars = if Keyword.keyword?(vars), do: vars, else: []
 
     template = if is_nil(opts) || Enum.empty?(opts), do: "", else: Enum.at(opts, idx)
 

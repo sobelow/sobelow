@@ -62,6 +62,32 @@ defmodule Sobelow.VersionCheckTest do
     assert File.read!(parent) == "contents"
   end
 
+  @tag :tmp_dir
+  test "a failed refresh is retryable, and a successful equal version becomes fresh", %{
+    tmp_dir: dir
+  } do
+    cache = Path.join(dir, "last_version_check")
+    future = System.system_time(:second) + 60
+    File.write!(cache, "sobelow-#{future}")
+    parent = self()
+
+    assert VersionCheck.run(cache, "0.15.0", fn _ ->
+             send(parent, :attempted)
+             :error
+           end) == nil
+
+    assert_receive :attempted
+    assert {:ok, ^future} = VersionCheck.last_version_check(cache)
+    refute File.exists?(cache <> ".sobelow-lock")
+
+    assert VersionCheck.run(cache, "0.15.0", fn installed -> Version.parse!(installed) end) == :ok
+    assert {:ok, current} = VersionCheck.last_version_check(cache)
+    assert current < future
+
+    assert VersionCheck.run(cache, "0.15.0", fn _ -> send(parent, :refetched) end) == nil
+    refute_received :refetched
+  end
+
   test "requests require trusted certificates and verify peer and hostname" do
     request = fn :get, {url, []}, options, [] ->
       assert url == ~c"https://sobelow.io/version"

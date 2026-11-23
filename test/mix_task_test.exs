@@ -399,6 +399,67 @@ defmodule SobelowTest.MixTaskTest do
     end
   end
 
+  @tag :tmp_dir
+  test "CLI aliases override file settings within their option groups", %{tmp_dir: dir} do
+    File.write!(
+      Path.join(dir, ".sobelow-conf"),
+      "[quiet: true, no_router: true, with_code: true]"
+    )
+
+    env = parse(["--root", dir, "--format", "json", "--router", "custom.ex", "--no-verbose"])
+    assert env.format == "json"
+    assert env.router == "custom.ex"
+    refute env.verbose
+  end
+
+  @tag :tmp_dir
+  test "skip actions in the config do not clear or replace the baseline", %{tmp_dir: dir} do
+    config = Path.join(dir, ".sobelow-conf")
+    skips = Path.join(dir, ".sobelow-skips")
+    File.write!(config, "[clear_skip: true, mark_skip_all: true, strict: true]")
+    File.write!(skips, "keep\n")
+
+    stderr = capture_io(:stderr, fn -> assert parse(["--root", dir]).strict end)
+    assert stderr =~ "--clear-skip"
+    assert stderr =~ "--mark-skip-all"
+    refute Application.get_env(:sobelow, :clear_skip)
+    refute Application.get_env(:sobelow, :mark_skip_all)
+    assert File.read!(skips) == "keep\n"
+  end
+
+  @tag :tmp_dir
+  test "a stale save confirmation cannot overwrite a changed config", %{tmp_dir: dir} do
+    path = Path.join(dir, ".sobelow-conf")
+    File.write!(path, "[private: true]")
+    snapshot = File.read(path)
+    File.write!(path, "[summary: true]")
+    parse([])
+
+    capture_io("y\n", fn ->
+      assert_raise Sobelow.ScanError, ~r/changed while preparing the save/, fn ->
+        Sobelow.save_config(path, snapshot)
+      end
+    end)
+
+    assert File.read!(path) == "[summary: true]"
+    refute File.exists?(path <> ".sobelow-lock")
+  end
+
+  @tag :tmp_dir
+  test "negated actions do not preempt version output", %{tmp_dir: dir} do
+    assert capture_io(fn ->
+             Mix.Tasks.Sobelow.run([
+               "--root",
+               dir,
+               "--no-save-config",
+               "--no-all-details",
+               "--version"
+             ])
+           end) == "#{Application.spec(:sobelow, :vsn)}\n"
+
+    refute File.exists?(Path.join(dir, ".sobelow-conf"))
+  end
+
   describe "read_config_file/1" do
     @describetag :tmp_dir
 

@@ -36,6 +36,32 @@ defmodule Sobelow.DiagnosticsTest do
     assert stderr =~ "unparseable: 0"
   end
 
+  test "a project with every source ignored still produces an empty report" do
+    ignored_files = Path.wildcard(fixture_path("no_router") <> "/lib/**/*.ex")
+    assert ignored_files != []
+
+    {stdout, stderr} =
+      scan_io("no_router",
+        ignored_files: Enum.map(ignored_files, &Path.expand/1),
+        only: ["Traversal"],
+        router: :none,
+        summary: true
+      )
+
+    assert Jason.decode!(stdout)["total_findings"] == 0
+    assert stderr =~ "scanned: 0, ignored: #{length(ignored_files)}"
+  end
+
+  test "an explicit router not needed by any enabled check is counted as unselected" do
+    temp_fixture_file("no_router", "custom.ex", "incomplete(")
+
+    {_stdout, stderr} =
+      scan_io("no_router", only: ["Traversal"], router: "custom.ex", summary: true)
+
+    assert stderr =~ "unparseable: 0, pending: 0, unselected: 1"
+    refute stderr =~ "custom.ex"
+  end
+
   test "invalid HEEx interpolation and inline EEx are included in partial scan diagnostics" do
     temp_fixture_file(
       "basic",
@@ -56,6 +82,14 @@ defmodule Sobelow.DiagnosticsTest do
              Jason.decode!(stdout) |> findings_for("Traversal.FileModule"),
              &String.ends_with?(&1["file"], "invalid_inline.ex")
            )
+  end
+
+  test "delimited EEx with incomplete Elixir is diagnosed without aborting" do
+    temp_fixture_file("basic", "lib/broken.html.eex", "<%= (1 %>")
+    {stdout, stderr} = scan_io("basic", summary: true)
+    assert Jason.decode!(stdout)["total_findings"] > 0
+    assert stderr =~ "broken.html.eex"
+    assert stderr =~ "unparseable: 1, pending: 0"
   end
 
   test "unreadable project sources are reported once and remain nonfatal" do

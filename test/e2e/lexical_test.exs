@@ -63,6 +63,33 @@ defmodule Sobelow.LexicalTest do
              |> Enum.filter(&String.ends_with?(&1["file"], path))
   end
 
+  test "qualified aliases resolve in defaults, implicit rescue and metadata fallback" do
+    path =
+      temp_fixture_file("basic", "lib/definition_contexts.ex", ~S'''
+      defmodule DefinitionContexts do
+        alias File, as: FS
+        def default(path \\ FS.read(System.get_env("APP_PATH")))
+        def default(path), do: path
+        def rescue_clause(path) do
+          path
+        rescue
+          _ -> FS.read(path)
+        end
+        def parent(path) do
+          defmodule Inner do
+            def read(path), do: FS.read(path)
+          end
+          FS.read(path)
+        end
+      end
+      ''')
+
+    assert scan("basic")
+           |> findings_for("Traversal.FileModule")
+           |> Enum.filter(&String.ends_with?(&1["file"], path))
+           |> Enum.map(& &1["line"]) == [3, 8, 12, 14]
+  end
+
   test "grouped aliases and nested modules inherit lexical declarations" do
     path =
       temp_fixture_file("basic", "lib/nested_queries.ex", """

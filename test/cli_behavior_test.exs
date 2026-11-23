@@ -12,6 +12,13 @@ defmodule Sobelow.CLIBehaviorTest do
     assert Sobelow.get_env(:verbose)
   end
 
+  test "diff forwarding removes all spellings and preserves unrelated tokens" do
+    argv = ["--diff", "first", "--out=--diff=report", "--exit", "--diff=last", "--", "--diff"]
+
+    assert Mix.Tasks.Sobelow.diff_args(argv) ==
+             {"last", ["--out=--diff=report", "--exit", "--", "--diff"]}
+  end
+
   test "details supports categories, individual checks and unknown names" do
     assert capture_io(fn -> Mix.Tasks.Sobelow.run(["--private", "--details", "SQL"]) end) =~
              "SQL Injection"
