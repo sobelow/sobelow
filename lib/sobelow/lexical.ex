@@ -94,6 +94,28 @@ defmodule Sobelow.Lexical do
 
   def kernel_call?(_), do: false
 
+  # Conservative ownership check for single-module, directly resolvable helpers.
+  # A matching import makes an unqualified call ambiguous to a local tracker.
+  def local_call?(node, extra \\ 0)
+
+  def local_call?({name, _, args} = node, extra)
+      when is_atom(name) and (is_list(args) or (is_nil(args) and extra > 0)) do
+    case resolution(node) do
+      %{imports: imports} ->
+        signature = {name, length(args || []) + extra}
+
+        not Enum.any?(imports, fn
+          {_module, {:only, functions}} -> signature in functions
+          _ -> false
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  def local_call?(_, _), do: false
+
   def index_inline(ast, sigil) do
     case resolution(sigil) do
       %{aliases: _} = env ->
@@ -279,13 +301,14 @@ defmodule Sobelow.Lexical do
 
   defp walk({:__block__, _, nodes}, env, acc), do: walk(nodes, env, acc)
 
-  defp walk({:defmodule, _, [name, [do: body]]}, env, acc) do
-    # Local definitions apply throughout their module, including before their
-    # declaration. Nested modules inherit imports and aliases, not local functions.
-    {outer, inner} = module_scope(name, env)
-    {_inner, acc} = walk(body, Map.put(inner, :local_functions, local_functions(body)), acc)
-    {outer, acc}
-  end
+  defp walk({:defmodule, _, [name, [do: body]]}, env, acc),
+    do: walk_module(name, body, env, acc)
+
+  defp walk({:defprotocol, _, [name, [do: body]]}, env, acc),
+    do: walk_module(name, body, env, acc)
+
+  defp walk({:defimpl, _, [name, _options, [do: body]]}, env, acc),
+    do: walk_module(name, body, env, acc)
 
   defp walk({kind, _, [_head | _] = parts} = node, env, acc) when kind in [:def, :defp] do
     # Qualified checks can see defaults and implicit rescue/else/after clauses.
@@ -331,6 +354,11 @@ defmodule Sobelow.Lexical do
     # same call so alias resolution and import arities survive that conversion.
     walk(Sobelow.Parse.create_fun_cap(fun, meta, arity), env, acc)
   end
+
+  # Literal module values can be passed between project helpers. Retain their
+  # lexical alias resolution without executing or expanding inspected code.
+  defp walk({:__aliases__, _, _} = node, env, acc),
+    do: {env, put_call(acc, node, %{module: module_name(node, env)})}
 
   defp walk({:sigil_H, _, _} = node, env, acc) do
     # The string's AST is parsed later, after source locations and assigns have
@@ -380,6 +408,14 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk(_, env, acc), do: {env, acc}
+
+  defp walk_module(name, body, env, acc) do
+    # Local definitions apply throughout their module, including before their
+    # declaration. Nested modules inherit imports and aliases, not local functions.
+    {outer, inner} = module_scope(name, env)
+    {_inner, acc} = walk(body, Map.put(inner, :local_functions, local_functions(body)), acc)
+    {outer, acc}
+  end
 
   # A nested defmodule A.B installs an alias for A in its enclosing module
   # and inside its own body. Explicit alias declarations can override it later.

@@ -15,6 +15,14 @@
     calls in templates. LiveView findings can also trace an event payload
     through an assign on the returned socket to its use in inline or colocated HEEx.
 
+  * `Misc.BinToTerm` can now report unchecked request-controlled ETF handoffs
+    through bounded, statically resolved helpers across scanned project files.
+    Findings retain the decoder's source location, rule ID and skip fingerprint;
+    analysis limits warn rather than treating an unfinished path as safe.
+    Detection does not depend on verbose or SARIF flow rendering. This may
+    produce additional findings and change confidence-based CI exit results.
+    Absence of a finding is not proof of resource safety.
+
 ## v0.19.0
 
 New checks and expanded ZIP callback analysis can produce additional findings and

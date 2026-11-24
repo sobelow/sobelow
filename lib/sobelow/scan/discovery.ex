@@ -4,6 +4,7 @@ defmodule Sobelow.Scan.Discovery do
   alias Sobelow.Parse
   alias Sobelow.Parse.Flow
   alias Sobelow.Parse.Metadata
+  alias Sobelow.Parse.UncheckedTerms
   alias Sobelow.Scan
   alias Sobelow.Utils
 
@@ -23,6 +24,7 @@ defmodule Sobelow.Scan.Discovery do
 
     ignored = Sobelow.get_ignored()
     allowed = categories -- ignored
+    term_enabled = Sobelow.Misc in allowed and Sobelow.Misc.BinToTerm not in ignored
 
     source_paths = Utils.all_files(lib_root)
 
@@ -48,10 +50,10 @@ defmodule Sobelow.Scan.Discovery do
 
     # Prepare metadata before checks emit findings. Ignoring every source is
     # a valid selection, not the same as discovering no sources at all.
-    root_meta_files = get_meta_files(source_paths)
+    root_meta_files = get_meta_files(source_paths, term_enabled)
     template_meta_files = get_meta_templates(lib_root)
-    libroot_meta_files = get_meta_files(lib_paths)
-    extra_meta_files = get_meta_files(extra_paths)
+    libroot_meta_files = get_meta_files(lib_paths, term_enabled)
+    extra_meta_files = get_meta_files(extra_paths, term_enabled)
     default_router = get_router(tmp_default_router, phx_post_1_2?)
 
     {routers, endpoints} =
@@ -65,11 +67,16 @@ defmodule Sobelow.Scan.Discovery do
         do: Flow.attach(files, template_meta_files),
         else: {files, template_meta_files}
 
+    # Detection does not depend on verbose output or SARIF evidence. Build a
+    # separate, bounded project index from scan-eligible sources only.
+    terms = if term_enabled, do: UncheckedTerms.project(files), else: nil
+
     %{
       app_name: app_name,
       allowed: allowed,
       ignored_checks: ignored_checks,
       files: files,
+      terms: terms,
       templates: templates,
       routers: routers,
       endpoints: endpoints
@@ -162,16 +169,16 @@ defmodule Sobelow.Scan.Discovery do
     }
   end
 
-  defp get_meta_files(paths) do
+  defp get_meta_files(paths, term_enabled) do
     ignored_files = Sobelow.get_env(:ignored_files)
 
     paths
     |> Scan.discover(&Scan.ignored_file?(&1, ignored_files || []))
     |> Enum.reject(&Scan.ignored_file?(&1, ignored_files || []))
-    |> Sobelow.Scan.map(&get_file_meta/1)
+    |> Sobelow.Scan.map(&get_file_meta(&1, term_enabled))
   end
 
-  defp get_file_meta(filename) do
+  defp get_file_meta(filename, term_enabled) do
     # Warn about malformed skip comments once during preparation.
     ast = Parse.ast_with_skip_warnings(filename)
     {meta_funs, contexts} = Parse.file_metadata(ast)
@@ -181,6 +188,11 @@ defmodule Sobelow.Scan.Discovery do
     lexical = Sobelow.Lexical.function_scopes(ast)
 
     skips = Metadata.function_skips(ast)
+
+    term_definitions =
+      if term_enabled,
+        do: UncheckedTerms.definitions(ast, Utils.normalize_path(filename), contexts, skips),
+        else: []
 
     definitions =
       if Sobelow.code_flows?(),
@@ -216,6 +228,7 @@ defmodule Sobelow.Scan.Discovery do
       filename: Utils.normalize_path(filename),
       file_path: Path.expand(filename),
       scan_contexts: scan_contexts,
+      term_definitions: term_definitions,
       flow_definitions: definitions,
       controller?: Utils.controller?(use_funs),
       router?: Utils.router?(use_funs),
