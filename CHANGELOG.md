@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+  * Restore function-level `# sobelow_skip` comments above `@doc`, `@impl`,
+    `@deprecated`, and matching `@spec` annotations. Previously suppressed
+    findings could reappear under `--skip` and cause CI to exit with a failure.
   * `mix sobelow --verbose` displays each available source-to-sink path above
     the highlighted code snippet, with a file and location for each step.
   * SARIF file traversal and SQL query/stream findings can trace request data

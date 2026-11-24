@@ -81,6 +81,16 @@ defmodule Sobelow.PipelineSkipTest do
     assert "Config.Headers" in mods
   end
 
+  test "a function annotation between a skip and a pipeline breaks the association" do
+    temp_fixture_file(
+      "basic",
+      @router_path,
+      router("# sobelow_skip [\"Config.CSRF\"]\n  @doc false")
+    )
+
+    assert "Config.CSRF" in finding_modules(scan("basic", skip: true))
+  end
+
   test "an unrelated check listed on a pipeline does not suppress the pipeline" do
     temp_fixture_file("basic", @router_path, router(~s(# sobelow_skip ["XSS.Raw"])))
 

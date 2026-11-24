@@ -4,6 +4,8 @@ defmodule Sobelow.Parse.Metadata do
   alias Sobelow.Parse.Calls
   alias Sobelow.Parse.Source
 
+  @function_kinds [:def, :defp]
+
   def get_meta_funs(filepath) when is_binary(filepath) do
     ast = Source.ast(filepath)
     get_meta_funs(ast)
@@ -159,7 +161,7 @@ defmodule Sobelow.Parse.Metadata do
 
   # A definition's identity survives the metadata fallback that removes nested
   # modules from its body. Source ASTs include both line and column metadata.
-  def definition_key({kind, meta, [_head | _]}) when kind in [:def, :defp],
+  def definition_key({kind, meta, [_head | _]}) when kind in @function_kinds,
     do: {kind, meta}
 
   def definition_key(_), do: nil
@@ -170,7 +172,7 @@ defmodule Sobelow.Parse.Metadata do
         Macro.prewalk(ast, %{}, fn
           {:__block__, _, statements} = node, skips ->
             {node,
-             Enum.reduce(associate_skips(statements, [:def, :defp]), skips, fn
+             Enum.reduce(associate_skips(statements, @function_kinds), skips, fn
                {definition, checks, _attrs}, acc ->
                  Map.put(acc, definition_key(definition), checks)
              end)}
@@ -224,26 +226,60 @@ defmodule Sobelow.Parse.Metadata do
 
   defp collect_skip_associations(ast, acc), do: {ast, acc}
 
-  # Only adjacent attributes in the same block bind to the following statement.
+  # A pending skip stays within its block. Function annotations may intervene
+  # before a definition, while pipeline skips require an adjacent directive.
   defp associate_skips(statements, targets) do
     {associations, _pending} =
       Enum.reduce(statements, {[], []}, fn
         {:@, _, [{:sobelow_skip, _, [skips]}]} = attr, {acc, pending} when is_list(skips) ->
           if Enum.all?(skips, &is_binary/1), do: {acc, [{attr, skips} | pending]}, else: {acc, []}
 
-        {kind, _, _} = statement, {acc, pending} when pending != [] ->
+        {:@, _, [{name, _, [_]}]}, state
+        when targets == @function_kinds and name in [:doc, :impl, :deprecated] ->
+          state
+
+        {:@, _, [{:spec, _, [spec]}]}, {acc, [_ | _] = pending} when targets == @function_kinds ->
+          {acc, [{:spec, spec} | pending]}
+
+        {kind, _, [_ | _]} = statement, {acc, pending} when pending != [] ->
           if kind in targets,
-            do: {[{statement, Enum.reverse(pending)} | acc], []},
+            do: {[{statement, preceding_skips(pending, statement)} | acc], []},
             else: {acc, []}
 
         _, {acc, _pending} ->
           {acc, []}
       end)
 
-    Enum.map(associations, fn {pipeline, pending} ->
-      {pipeline, Enum.flat_map(pending, &elem(&1, 1)), Enum.map(pending, &elem(&1, 0))}
+    for {target, [_ | _] = skips} <- associations do
+      {target, Enum.flat_map(skips, &elem(&1, 1)), Enum.map(skips, &elem(&1, 0))}
+    end
+  end
+
+  # Walk back from the definition so a spec for another function cuts off
+  # earlier skips while preserving any directive written below that spec.
+  defp preceding_skips(pending, {_, _, [head | _]}) do
+    Enum.reduce_while(pending, [], fn
+      {:spec, spec}, acc ->
+        if matching_spec?(spec, head), do: {:cont, acc}, else: {:halt, acc}
+
+      skip, acc ->
+        {:cont, [skip | acc]}
     end)
   end
+
+  defp matching_spec?({:when, _, [spec | _]}, head), do: matching_spec?(spec, head)
+  defp matching_spec?(spec, {:when, _, [head | _]}), do: matching_spec?(spec, head)
+
+  defp matching_spec?({:"::", _, [{name, _, spec_args}, _]}, {name, _, args})
+       when is_atom(name) and (is_list(spec_args) or is_nil(spec_args)) and
+              (is_list(args) or is_nil(args)) do
+    args = List.wrap(args)
+    arity = length(args)
+    defaults = Enum.count(args, &match?({:\\, _, _}, &1))
+    length(List.wrap(spec_args)) in (arity - defaults)..arity
+  end
+
+  defp matching_spec?(_, _), do: false
 
   def get_meta_funs({:@, _, [{:sobelow_skip, _, _}]} = ast, acc) do
     if Sobelow.get_env(:skip) do

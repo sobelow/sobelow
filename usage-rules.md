@@ -47,11 +47,14 @@ Use `--threshold low|medium|high` to filter the report by confidence.
 There are two mechanisms and they are not interchangeable.
 
 **`# sobelow_skip` comments** mark a *specific function* or a *specific Phoenix
-router pipeline*. The comment must sit immediately above the `def` or `pipeline`
-it applies to.
+router pipeline*. Place the comment above the `def` or `defp`. The function's
+`@doc`, `@impl`, `@deprecated`, and matching `@spec` annotations may appear
+between the comment and the definition. For a pipeline, place the comment
+immediately above `pipeline`.
 
 ```elixir
 # sobelow_skip ["Traversal.SendFile", "XSS.Raw"]
+@spec download(Plug.Conn.t(), map()) :: Plug.Conn.t()
 def download(conn, params) do
   ...
 end
