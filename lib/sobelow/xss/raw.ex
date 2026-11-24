@@ -31,6 +31,14 @@ defmodule Sobelow.XSS.Raw do
     {vars, _, {fun_name, line_no}} = parse_render_def(fun)
     filename = meta_file.filename
 
+    base = %Finding{
+      type: @finding_type,
+      filename: filename,
+      fun_source: fun,
+      fun_name: fun_name,
+      fun_line_no: line_no
+    }
+
     paths =
       Enum.flat_map(vars, fn {_finding, {template, _refs, _vars}} ->
         template_paths(filename, controller, template_name(template))
@@ -46,27 +54,46 @@ defmodule Sobelow.XSS.Raw do
       {raw_funs, template_path} = get_rf_tp(templates, filename, controller, template)
 
       if raw_funs do
-        raw_vals = Parse.get_template_vars(raw_funs.raw)
-
-        Enum.each(ref_vars, fn var ->
-          var = "@#{var}"
-
-          if Enum.member?(raw_vals, var) do
-            t_name = String.replace_prefix(Path.expand(template_path, ""), "/", "")
-            add_finding(t_name, line_no, filename, fun_name, fun, var, :high, finding)
-          end
-        end)
-
-        Enum.each(vars, fn var ->
-          var = "@#{var}"
-
-          if Enum.member?(raw_vals, var) do
-            t_name = String.replace_prefix(Path.expand(template_path, ""), "/", "")
-            add_finding(t_name, line_no, filename, fun_name, fun, var, :medium, finding)
-          end
-        end)
+        uses = Enum.group_by(Parse.template_raw_uses(raw_funs.raw), &elem(&1, 0), &elem(&1, 1))
+        assigns = Enum.map(ref_vars, &{&1, :high}) ++ Enum.map(vars, &{&1, :medium})
+        report_assigns(assigns, uses, template_path, finding, base)
       end
     end)
+  end
+
+  defp report_assigns(assigns, uses, template, render, base) do
+    Enum.each(assigns, fn {name, confidence} ->
+      var = "@#{name}"
+
+      if calls = Map.get(uses, var) do
+        finding = %{
+          base
+          | vuln_source: render,
+            vuln_variable: var,
+            vuln_line_no: Parse.get_fun_line(render),
+            vuln_col_no: Parse.get_fun_column(render),
+            confidence: confidence,
+            code_flows: template_flows(base.filename, render, template, calls, var)
+        }
+
+        add_finding(Finding.fetch_fingerprint(finding), template)
+      end
+    end)
+  end
+
+  defp template_flows(filename, render, template, calls, var) do
+    if Sobelow.output_format() == "sarif" do
+      source =
+        Finding.flow_location(filename, render, "Render passes the #{var} assign to the template")
+
+      calls
+      |> Enum.map(&Finding.flow_location(template, &1, "raw outputs #{var}"))
+      |> Enum.uniq()
+      |> Enum.sort()
+      |> Enum.map(&[source, &1])
+    else
+      []
+    end
   end
 
   defp run_direct(fun, meta_file) do
@@ -139,19 +166,8 @@ defmodule Sobelow.XSS.Raw do
     {vars ++ inline_vars, params, declaration}
   end
 
-  defp add_finding(t_name, line_no, filename, fun_name, fun, var, severity, finding) do
-    finding =
-      %Finding{
-        type: @finding_type,
-        filename: filename,
-        fun_source: fun,
-        vuln_source: finding,
-        vuln_variable: var,
-        vuln_line_no: Parse.get_fun_line(finding),
-        vuln_col_no: Parse.get_fun_column(finding),
-        confidence: severity
-      }
-      |> Finding.fetch_fingerprint()
+  defp add_finding(finding, template) do
+    t_name = Utils.normalize_path(template)
 
     case Sobelow.format() do
       "json" ->
@@ -167,10 +183,10 @@ defmodule Sobelow.XSS.Raw do
 
       "txt" ->
         Sobelow.log_finding(finding, [
-          Print.finding_file_name(filename),
+          Print.finding_file_name(finding.filename),
           Print.finding_line(finding.vuln_source),
-          Print.finding_fun_metadata(fun_name, line_no),
-          "Template: #{t_name} - #{var}"
+          Print.finding_fun_metadata(finding.fun_name, finding.fun_line_no),
+          "Template: #{t_name} - #{finding.vuln_variable}"
         ])
 
       "compact" ->

@@ -325,25 +325,42 @@ defmodule Sobelow.FindingLog do
       message: %{
         text: finding.type
       },
-      locations: [
-        %{
-          physicalLocation: %{
-            artifactLocation: %{
-              uri: sarif_uri(finding.filename)
-            },
-            region: %{
-              startLine: sarif_num(finding.vuln_line_no),
-              startColumn: sarif_num(finding.vuln_col_no),
-              endLine: sarif_num(finding.vuln_line_no),
-              endColumn: sarif_num(finding.vuln_col_no)
-            }
-          }
-        }
-      ],
+      locations: [sarif_location(finding.filename, finding.vuln_line_no, finding.vuln_col_no)],
       partialFingerprints: %{
         primaryLocationLineHash: finding.fingerprint
       },
       level: to_level(finding.confidence)
+    }
+    |> put_code_flows(finding.code_flows)
+  end
+
+  defp put_code_flows(result, []), do: result
+
+  defp put_code_flows(result, flows) do
+    Map.put(result, :codeFlows, Enum.map(flows, &sarif_flow/1))
+  end
+
+  defp sarif_flow(steps) do
+    locations =
+      for {file, line, column, message} <- steps do
+        location = sarif_location(file, line, column)
+        %{location: Map.put(location, :message, %{text: message})}
+      end
+
+    %{threadFlows: [%{locations: locations}]}
+  end
+
+  defp sarif_location(file, line, column) do
+    %{
+      physicalLocation: %{
+        artifactLocation: %{uri: sarif_uri(file)},
+        region: %{
+          startLine: sarif_num(line),
+          startColumn: sarif_num(column),
+          endLine: sarif_num(line),
+          endColumn: sarif_num(column)
+        }
+      }
     }
   end
 

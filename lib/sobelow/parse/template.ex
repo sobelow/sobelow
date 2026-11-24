@@ -160,12 +160,14 @@ defmodule Sobelow.Parse.Template do
   def get_meta_template_fun(ast, acc), do: {ast, acc}
 
   def get_template_vars(raw_funs) do
+    Enum.map(template_raw_uses(raw_funs), &elem(&1, 0))
+  end
+
+  def template_raw_uses(raw_funs) do
     Enum.flat_map(raw_funs, fn ast ->
       {vars, _, _} = Calls.get_fun_vars_and_meta([ast], 0, :raw, :HTML)
 
-      Enum.flat_map(vars, fn {_, var} ->
-        var
-      end)
+      for {call, labels} <- vars, label <- List.wrap(labels), do: {label, call}
     end)
   end
 
