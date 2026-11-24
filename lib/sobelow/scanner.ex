@@ -5,6 +5,8 @@ defmodule Sobelow.Scanner do
   alias Sobelow.FindingLog
   alias Sobelow.Fingerprint
   alias Sobelow.MetaLog
+  alias Sobelow.Misc.BinToTerm
+  alias Sobelow.Parse.UncheckedTerms
   alias Sobelow.Scan
   alias Sobelow.Scan.Discovery
   alias Sobelow.SkipFile
@@ -41,18 +43,32 @@ defmodule Sobelow.Scanner do
     allowed = allowed -- [Config, Vuln]
 
     scan_workers(project.files, fn meta_file ->
-      Enum.each(meta_file.scan_contexts, fn context ->
-        context_meta =
-          Map.merge(
-            Map.take(meta_file, [:filename, :file_path, :live_renders]),
-            Map.drop(context, [:functions])
-          )
+      BinToTerm.with_file(fn ->
+        Enum.each(meta_file.scan_contexts, fn context ->
+          local_terms =
+            if Sobelow.Misc in allowed do
+              UncheckedTerms.local_functions(context.functions)
+            else
+              nil
+            end
 
-        Enum.each(context.functions, fn {fun, lexical} ->
-          get_fun_vulns(fun, Map.put(context_meta, :lexical, lexical), project_root, allowed)
+          context_meta =
+            Map.merge(
+              Map.take(meta_file, [:filename, :file_path, :live_renders]),
+              Map.drop(context, [:functions])
+            )
+            |> Map.put(:local_terms, local_terms)
+
+          Enum.each(context.functions, fn {fun, lexical} ->
+            get_fun_vulns(fun, Map.put(context_meta, :lexical, lexical), project_root, allowed)
+          end)
         end)
       end)
     end)
+
+    if project.terms && BinToTerm in Sobelow.allowed_checks(Sobelow.Misc, [BinToTerm]) do
+      BinToTerm.project_handoffs(project.terms)
+    end
 
     if Sobelow.XSS in allowed do
       scan_workers(project.templates, fn {_, meta_file} ->

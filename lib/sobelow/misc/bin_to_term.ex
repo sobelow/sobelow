@@ -16,11 +16,19 @@ defmodule Sobelow.Misc.BinToTerm do
 
   Prefer `Plug.Crypto.non_executable_binary_to_term(data, [:safe])` for
   untrusted ETF input, and validate the resulting types and structure.
-  That combination is omitted by this check, but omission is not an assurance
-  of bounded resource use. ETF supports compressed terms: neither `:safe` nor
-  rejection of executable terms imposes a decompression or decoded-memory
-  budget. Even uncompressed terms can allocate more memory than their encoded
-  representation. A limit on encoded bytes alone may therefore be insufficient.
+  When request-controlled input is decoded with both protections, this check
+  also reports a directly forwarded term: a return or application consumer
+  reached without extracting and checking its scalar shape. It follows local
+  assignments, guarded clauses, and bounded statically resolvable helpers
+  across selected project files, including literal module dispatch. It does
+  not follow arbitrary dynamic calls or callbacks; when an analysis limit
+  prevents a decision, it warns rather than treating the path as safe.
+  A guarded scalar returned with a fixed rejection path is not considered a
+  forwarded term. Absence of a finding does not assure bounded resource use. ETF
+  supports compressed terms: neither `:safe` nor rejection of executable
+  terms imposes a decompression or decoded-memory budget. Even uncompressed
+  terms can allocate more memory than their encoded representation. A limit
+  on encoded bytes alone may therefore be insufficient.
 
   Validate types and structure, but remember that validation after decoding
   cannot prevent allocations already made by the decoder. Bound input,
@@ -39,6 +47,23 @@ defmodule Sobelow.Misc.BinToTerm do
 
   use Sobelow.Finding
 
+  @reported_key {__MODULE__, :reported_handoffs}
+
+  # A file worker can reach the same decoder through several local callers.
+  # Report one finding per decoder location, without changing other checks or
+  # suppressing a later caller when the first one was skipped.
+  @doc false
+  def with_file(fun) do
+    previous = Process.get(@reported_key)
+    Process.put(@reported_key, MapSet.new())
+
+    try do
+      fun.()
+    after
+      Process.put(@reported_key, previous)
+    end
+  end
+
   def run(fun, meta_file) do
     piped = piped_calls(fun)
 
@@ -52,6 +77,60 @@ defmodule Sobelow.Misc.BinToTerm do
 
       Print.add_finding(finding)
     end)
+
+    if meta_file[:local_terms] do
+      Parse.UncheckedTerms.handoffs(fun, meta_file.local_terms, meta_file.controller?)
+      |> Enum.each(fn {node, origin, source, use_line} ->
+        {params, declaration} = Parse.get_fun_declaration(origin)
+        variable = "#{source}; unchecked handoff at line #{use_line}"
+
+        Finding.init(@finding_type, meta_file.filename, :high)
+        |> Finding.multi_from_def(origin, {[{node, variable}], params, declaration})
+        |> Enum.each(&add_handoff/1)
+      end)
+    end
+  end
+
+  @doc false
+  def project_handoffs(project) do
+    reported =
+      Sobelow.FindingLog.log()
+      |> Map.values()
+      |> List.flatten()
+      |> Enum.reduce(MapSet.new(), fn {_details, finding, _meta}, acc ->
+        MapSet.put(acc, finding.fingerprint)
+      end)
+
+    Parse.UncheckedTerms.project_handoffs(project)
+    |> Enum.reduce(reported, fn {node, origin, source, use_line}, reported ->
+      {params, declaration} = Parse.get_fun_declaration(origin.fun)
+      variable = "#{source}; unchecked handoff at line #{use_line}"
+
+      [finding] =
+        Finding.init(@finding_type, origin.filename, :high)
+        |> Finding.multi_from_def(origin.fun, {[{node, variable}], params, declaration})
+
+      finding = Finding.fetch_fingerprint(finding)
+
+      if MapSet.member?(reported, finding.fingerprint) or
+           not Sobelow.loggable?(finding, finding.confidence) do
+        reported
+      else
+        Print.add_finding(finding)
+        MapSet.put(reported, finding.fingerprint)
+      end
+    end)
+  end
+
+  defp add_handoff(finding) do
+    finding = Finding.fetch_fingerprint(finding)
+    reported = Process.get(@reported_key, MapSet.new())
+
+    if not MapSet.member?(reported, finding.fingerprint) and
+         Sobelow.loggable?(finding, finding.confidence) do
+      Process.put(@reported_key, MapSet.put(reported, finding.fingerprint))
+      Print.add_finding(finding)
+    end
   end
 
   # Both decoders take (binary, options): input index 0, options index 1.

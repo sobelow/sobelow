@@ -32,6 +32,8 @@ defmodule Sobelow.Parse.Metadata do
     {_, modules} =
       Macro.prewalk(ast, [], fn
         {:defmodule, _, [_, [do: body]]} = node, acc -> {node, [body | acc]}
+        {:defprotocol, _, [_, [do: body]]} = node, acc -> {node, [body | acc]}
+        {:defimpl, _, [_, _, [do: body]]} = node, acc -> {node, [body | acc]}
         node, acc -> {node, acc}
       end)
 
@@ -45,7 +47,7 @@ defmodule Sobelow.Parse.Metadata do
         |> Enum.map(fn body ->
           body
           |> Macro.prewalk(fn
-            {:defmodule, _, _} -> {}
+            {kind, _, _} when kind in [:defmodule, :defimpl, :defprotocol] -> {}
             node -> node
           end)
           |> get_meta_funs()
@@ -101,23 +103,15 @@ defmodule Sobelow.Parse.Metadata do
 
     case node do
       {:defmodule, _, [name, [do: _body]]} ->
-        empty = %{def_funs: [], use_funs: [], import_funs: [], module_attrs: []}
-        %{count: id, current: parent} = metadata
+        enter_module(node, metadata, name)
 
-        metadata = %{
-          metadata
-          | modules: Map.put(metadata.modules, id, empty),
-            current: id,
-            count: id + 1,
-            parents: [parent | metadata.parents],
-            fallback?:
-              metadata.fallback? or metadata.captured_depth > 0 or
-                not literal_module_name?(name)
-        }
+      {:defprotocol, _, [name, [do: _body]]} ->
+        enter_module(node, metadata, name)
 
-        {node, metadata}
+      {:defimpl, _, [name, _options, [do: _body]]} ->
+        enter_module(node, metadata, name)
 
-      {:defmodule, _, _} ->
+      {kind, _, _} when kind in [:defmodule, :defprotocol, :defimpl] ->
         {node, %{metadata | fallback?: true}}
 
       _ ->
@@ -134,16 +128,43 @@ defmodule Sobelow.Parse.Metadata do
     end
   end
 
-  defp metadata_post({:defmodule, _, [_, [do: _]]} = node, metadata) do
-    [parent | rest] = metadata.parents
-    {node, %{metadata | current: parent, parents: rest}}
-  end
+  defp metadata_post({:defmodule, _, [_, [do: _]]} = node, metadata),
+    do: leave_module(node, metadata)
+
+  defp metadata_post({:defprotocol, _, [_, [do: _]]} = node, metadata),
+    do: leave_module(node, metadata)
+
+  defp metadata_post({:defimpl, _, [_, _, [do: _]]} = node, metadata),
+    do: leave_module(node, metadata)
 
   defp metadata_post(node, metadata) do
     metadata =
       if captured_metadata?(node),
         do: %{metadata | captured_depth: metadata.captured_depth - 1},
         else: metadata
+
+    {node, metadata}
+  end
+
+  defp leave_module(node, metadata) do
+    [parent | rest] = metadata.parents
+    {node, %{metadata | current: parent, parents: rest}}
+  end
+
+  defp enter_module(node, metadata, name) do
+    empty = %{def_funs: [], use_funs: [], import_funs: [], module_attrs: []}
+    %{count: id, current: parent} = metadata
+
+    metadata = %{
+      metadata
+      | modules: Map.put(metadata.modules, id, empty),
+        current: id,
+        count: id + 1,
+        parents: [parent | metadata.parents],
+        fallback?:
+          metadata.fallback? or metadata.captured_depth > 0 or
+            not literal_module_name?(name)
+    }
 
     {node, metadata}
   end
