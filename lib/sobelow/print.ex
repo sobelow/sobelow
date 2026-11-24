@@ -26,7 +26,7 @@ defmodule Sobelow.Print do
     IO.puts(finding_line(finding.vuln_line_no))
     maybe_print_finding_fun_metadata(finding.fun_name, finding.fun_line_no)
     IO.puts(finding_variable(finding.vuln_variable))
-    maybe_print_code(finding.fun_source, finding.vuln_source)
+    maybe_print_code(finding.fun_source, finding.vuln_source, finding.code_flows)
     IO.puts(finding_break())
   end
 
@@ -37,7 +37,7 @@ defmodule Sobelow.Print do
       IO.puts(header)
     end)
 
-    maybe_print_code(finding.fun_source, finding.vuln_source)
+    maybe_print_code(finding.fun_source, finding.vuln_source, finding.code_flows)
     IO.puts(finding_break())
   end
 
@@ -147,8 +147,22 @@ defmodule Sobelow.Print do
     "\n-----------------------------------------------\n"
   end
 
-  def maybe_print_code(fun, finding) do
-    if Sobelow.get_env(:verbose), do: print_code(fun, finding)
+  def maybe_print_code(fun, finding, flows \\ []) do
+    if Sobelow.get_env(:verbose) do
+      Enum.each(flows, &print_code_flow/1)
+      print_code(fun, finding)
+    end
+  end
+
+  defp print_code_flow(steps) do
+    root = Sobelow.Scan.normalized_root()
+    IO.puts("\nPossible path")
+
+    Enum.each(steps, fn {file, line, column, message} ->
+      file = Path.relative_to(file, root)
+      position = Enum.take_while([line, column], &(is_integer(&1) and &1 > 0))
+      IO.puts("  #{Enum.join([file | position], ":")}  #{message}")
+    end)
   end
 
   def get_sev(params, var) do

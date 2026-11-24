@@ -84,7 +84,7 @@ defmodule Sobelow.XSS.Raw do
   end
 
   defp template_flows(filename, render, template, calls, var) do
-    if Sobelow.output_format() == "sarif" do
+    if Sobelow.code_flows?() do
       source =
         Finding.flow_location(filename, render, "Render passes the #{var} assign to the template")
 

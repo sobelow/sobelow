@@ -32,8 +32,74 @@ defmodule Sobelow.CodeFlowTest do
     assert Enum.all?(List.flatten(paths(render)), &(&1["message"]["text"] =~ "@name"))
     assert Enum.all?(at(results, @template), &(paths(&1) == []))
 
+    {verbose, _} = scan_io("basic", format: "txt", only: ["XSS.Raw"], verbose: true)
+
+    assert Regex.scan(~r/^  (.+\.heex:\d+)(?::\d+)?  raw outputs @name$/m, verbose,
+             capture: :all_but_first
+           ) ==
+             [["#{@template}:2"], ["#{@template}:3"]]
+
     File.write!(template, "{raw(@other)}")
     assert at(results("XSS.Raw"), @controller) == []
+  end
+
+  test "verbose text prints the SARIF steps in order above the highlighted sink" do
+    temp_fixture_file("no_router", @controller, """
+    defmodule BasicWeb.TraceController do
+      use BasicWeb, :controller
+      def show(_, params) do
+        path = params["path"]
+        Reports.read(path, "fixed")
+      end
+    end
+    """)
+
+    temp_fixture_file("no_router", "lib/reports.ex", """
+    defmodule Reports do
+      def read(path, fixed) do
+        File.read(path)
+        File.read(fixed)
+      end
+    end
+    """)
+
+    opts = [only: ["Traversal.FileModule"], router: :none]
+    {sarif, _} = scan_io("no_router", [format: "sarif"] ++ opts)
+    [traced, untraced] = Jason.decode!(sarif)["runs"] |> hd() |> Map.fetch!("results")
+    [steps] = paths(traced)
+    assert paths(untraced) == []
+    assert site(List.last(steps)) == {"lib/reports.ex", 3}
+
+    expected =
+      Enum.map_join(steps, "\n", fn loc ->
+        {file, line} = site(loc)
+        col = loc["physicalLocation"]["region"]["startColumn"]
+        "  #{file}:#{line}:#{col}  #{loc["message"]["text"]}"
+      end)
+
+    {verbose, _} = scan_io("no_router", [format: "txt", verbose: true] ++ opts)
+    [first, second, _] = String.split(verbose, Sobelow.Print.finding_break())
+    [_, snippet] = String.split(first, "Possible path\n" <> expected)
+    assert snippet =~ IO.ANSI.light_magenta() <> "File.read(path)"
+    assert second =~ IO.ANSI.light_magenta() <> "File.read(fixed)"
+    refute second =~ "Possible path"
+
+    {plain, _} = scan_io("no_router", [format: "txt"] ++ opts)
+    refute plain =~ "Possible path"
+    assert Sobelow.FindingLog.counts() == %{low: 2, medium: 0, high: 0}
+    assert Enum.all?(Sobelow.FindingLog.log().low, fn {_, f, _} -> f.code_flows == [] end)
+  end
+
+  test "verbose preserves each non-text report" do
+    for format <- ~w(json sarif github quiet compact flycheck) do
+      opts = [format: format, only: ["Traversal.SendFile"]]
+      {normal, _} = scan_io("basic", opts)
+      {verbose, _} = scan_io("basic", [verbose: true] ++ opts)
+      assert verbose == normal, format
+
+      [{_, finding, _}] = Sobelow.FindingLog.log().high
+      assert finding.code_flows != [] == (format == "sarif"), format
+    end
   end
 
   test "only a request value passed to the file path slot adds a trace" do

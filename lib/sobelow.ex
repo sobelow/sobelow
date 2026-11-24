@@ -177,6 +177,15 @@ defmodule Sobelow do
     get_env(:format)
   end
 
+  @doc false
+  def code_flows? do
+    case output_format() do
+      "sarif" -> true
+      "txt" -> get_env(:verbose) == true
+      _ -> false
+    end
+  end
+
   def get_env(key), do: Sobelow.Scan.env(key)
 
   @doc false

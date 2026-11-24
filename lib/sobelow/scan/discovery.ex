@@ -61,7 +61,7 @@ defmodule Sobelow.Scan.Discovery do
     files = root_meta_files ++ libroot_meta_files ++ extra_meta_files
 
     {files, templates} =
-      if Sobelow.output_format() == "sarif",
+      if Sobelow.code_flows?(),
         do: Flow.attach(files, template_meta_files),
         else: {files, template_meta_files}
 
@@ -183,7 +183,7 @@ defmodule Sobelow.Scan.Discovery do
     skips = Metadata.function_skips(ast)
 
     definitions =
-      if Sobelow.output_format() == "sarif",
+      if Sobelow.code_flows?(),
         do: Flow.definitions(ast, Utils.normalize_path(filename), lexical),
         else: []
 
