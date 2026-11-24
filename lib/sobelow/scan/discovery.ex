@@ -2,6 +2,7 @@ defmodule Sobelow.Scan.Discovery do
   @moduledoc false
 
   alias Sobelow.Parse
+  alias Sobelow.Parse.LocalFlow
   alias Sobelow.Parse.Metadata
   alias Sobelow.Scan
   alias Sobelow.Utils
@@ -178,6 +179,11 @@ defmodule Sobelow.Scan.Discovery do
 
     skips = Metadata.function_skips(ast)
 
+    argument_flows =
+      if Sobelow.output_format() == "sarif" and Utils.controller?(use_funs),
+        do: LocalFlow.index(ast, Utils.normalize_path(filename)),
+        else: %{}
+
     scan_contexts =
       Enum.map(contexts, fn context ->
         functions =
@@ -197,6 +203,7 @@ defmodule Sobelow.Scan.Discovery do
 
         %{
           functions: functions,
+          argument_flows: argument_flows,
           controller?: Utils.controller?(context.use_funs),
           imports_ecto_sql?: Utils.imports?(context.import_funs, [:Ecto, :Adapters, :SQL]),
           ecto_repo?: Utils.uses?(context.use_funs, [:Ecto, :Repo])

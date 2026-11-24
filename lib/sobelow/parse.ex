@@ -29,6 +29,7 @@ defmodule Sobelow.Parse do
   defdelegate get_meta_template_fun(ast, acc), to: Template
   defdelegate get_heex_raw_funs(ast, file \\ "inline HEEx"), to: Template
   defdelegate get_template_vars(raw_funs), to: Template
+  defdelegate template_raw_uses(raw_funs), to: Template
   defdelegate parse_render_opts(ast, params, idx), to: Template
   defdelegate extract_render_opts(ast, acc), to: Template
   defdelegate conn_params?(ast), to: Template

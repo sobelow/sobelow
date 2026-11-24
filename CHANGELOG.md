@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+  * SARIF reports now link controller render assignments to matching `raw`
+    calls in templates. File traversal results can also show the path from a
+    controller argument through one private helper to the checked file path.
+
 ## v0.19.0
 
 New checks and expanded ZIP callback analysis can produce additional findings and

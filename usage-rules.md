@@ -183,10 +183,21 @@ Other useful flags:
 
 ## What it will and will not find
 
-Sobelow flags patterns, not proven exploits. It has no cross-function taint
-tracking: it decides confidence from the parameters of the *enclosing* function
-only. A value laundered through a helper will usually come back as low confidence
-or not at all.
+Sobelow flags patterns for review. It grades confidence using the enclosing
+function. Two kinds of SARIF results also show how data moves between source
+locations.
+
+- A controller `XSS.Raw` result links the render assignment to each matching
+  `raw` expression in the selected EEx or HEEx template.
+- For `Traversal.FileModule` and `Traversal.SendFile`, a trace can start at a
+  public two-argument controller function, follow request data through one
+  same-module private helper, and end at the checked path argument. Sobelow
+  follows direct calls and pipes with simple parameter bindings. It shows the
+  first matching caller in source order. Ambiguous clauses, dynamic dispatch,
+  and rebinding can leave a finding without a trace.
+
+These traces supplement existing findings. A helper can still receive request
+data through paths beyond this limited analysis.
 
 It also does not check dependencies for known CVEs in general — the `Vuln.*` checks
 cover a small fixed set of historical advisories by reading installed dependency

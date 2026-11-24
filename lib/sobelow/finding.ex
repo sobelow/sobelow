@@ -13,7 +13,8 @@ defmodule Sobelow.Finding do
     :fun_line_no,
     :fun_source,
     :fingerprint,
-    :legacy_fingerprint
+    :legacy_fingerprint,
+    code_flows: []
   ]
 
   def init(type, filename, confidence \\ nil) do
@@ -24,7 +25,12 @@ defmodule Sobelow.Finding do
     }
   end
 
-  def multi_from_def(%Sobelow.Finding{} = finding, fun, {vulns, params, {fun_name, fun_line_no}}) do
+  def multi_from_def(
+        %Sobelow.Finding{} = finding,
+        fun,
+        {vulns, params, {fun_name, fun_line_no}},
+        flows_by_call \\ %{}
+      ) do
     finding = %{finding | fun_name: fun_name, fun_line_no: fun_line_no, fun_source: fun}
 
     Enum.map(vulns, fn {vuln, var} ->
@@ -34,6 +40,7 @@ defmodule Sobelow.Finding do
           vuln_source: vuln,
           vuln_line_no: Sobelow.Parse.get_fun_line(vuln),
           vuln_col_no: Sobelow.Parse.get_fun_column(vuln),
+          code_flows: Map.get(flows_by_call, vuln, []),
           confidence:
             if(Sobelow.Lexical.uncertain?(vuln),
               do: :low,
@@ -50,6 +57,10 @@ defmodule Sobelow.Finding do
       }
       |> normalize()
     end)
+  end
+
+  def flow_location(filename, node, message) do
+    {filename, Sobelow.Parse.get_fun_line(node), Sobelow.Parse.get_fun_column(node), message}
   end
 
   # Follow only direct, top-level variable aliases before this sink. This can

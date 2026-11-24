@@ -16,6 +16,8 @@ defmodule Sobelow.Traversal.FileModule do
 
   use Sobelow.Finding
 
+  alias Sobelow.Parse.LocalFlow
+
   @file_funcs [
     :read,
     :read!,
@@ -45,14 +47,22 @@ defmodule Sobelow.Traversal.FileModule do
     Enum.each(@file_funcs ++ @double_file_funcs, fn file_func ->
       "Traversal.FileModule: Directory Traversal in `File.#{file_func}`"
       |> Finding.init(meta_file.filename, confidence)
-      |> Finding.multi_from_def(fun, parse_def(fun, file_func))
+      |> Finding.multi_from_def(
+        fun,
+        parse_def(fun, file_func),
+        LocalFlow.for_argument(meta_file, 0)
+      )
       |> Enum.each(&Print.add_finding(&1))
     end)
 
     Enum.each(@double_file_funcs, fn file_func ->
       "Traversal.FileModule: Directory Traversal in `File.#{file_func}`"
       |> Finding.init(meta_file.filename, confidence)
-      |> Finding.multi_from_def(fun, parse_second_def(fun, file_func))
+      |> Finding.multi_from_def(
+        fun,
+        parse_second_def(fun, file_func),
+        LocalFlow.for_argument(meta_file, 1)
+      )
       |> Enum.each(&Print.add_finding(&1))
     end)
   end
