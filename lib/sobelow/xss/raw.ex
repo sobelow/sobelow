@@ -18,6 +18,8 @@ defmodule Sobelow.XSS.Raw do
   @finding_type "XSS.Raw: XSS"
 
   alias Sobelow.Parse.Calls
+  alias Sobelow.Parse.Flow.LiveView
+  alias Sobelow.Parse.Metadata
 
   use Sobelow.Finding
 
@@ -98,11 +100,21 @@ defmodule Sobelow.XSS.Raw do
 
   defp run_direct(fun, meta_file) do
     confidence = if !meta_file.controller?, do: :low
+    inline = Parse.get_heex_raw_funs(fun, Map.get(meta_file, :file_path, meta_file.filename))
+
+    {raw, assigns} =
+      if is_list(fun) do
+        {fun, Map.get(meta_file, :live_assigns, [])}
+      else
+        {inline,
+         Map.get(Map.get(meta_file, :live_renders, %{}), Metadata.definition_key(fun), [])}
+      end
 
     Finding.init(@finding_type, meta_file.filename, confidence)
     |> Finding.multi_from_def(
       fun,
-      parse_raw_def(fun, Map.get(meta_file, :file_path, meta_file.filename))
+      raw_findings(fun, inline),
+      LiveView.raw_flows(raw, assigns, meta_file.filename)
     )
     |> Enum.each(&Print.add_finding(&1))
   end
@@ -153,12 +165,14 @@ defmodule Sobelow.XSS.Raw do
   end
 
   def parse_raw_def(fun, file \\ "inline HEEx") do
+    raw_findings(fun, Parse.get_heex_raw_funs(fun, file))
+  end
+
+  defp raw_findings(fun, inline) do
     {vars, params, declaration} = Parse.get_fun_vars_and_meta(fun, 0, :raw, :HTML)
 
     inline_vars =
-      fun
-      |> Parse.get_heex_raw_funs(file)
-      |> Enum.flat_map(fn raw ->
+      Enum.flat_map(inline, fn raw ->
         {raw_vars, _, _} = Parse.get_fun_vars_and_meta([raw], 0, :raw, :HTML)
         raw_vars
       end)

@@ -116,7 +116,7 @@ defmodule Sobelow.CodeFlowTest do
     assert sink["message"]["text"] =~ "dest is used as argument 2"
   end
 
-  test "ambiguous clauses, sibling modules, rebinding and quoted calls retain plain findings" do
+  test "a qualified sibling call resolves while ambiguous, rebound and quoted paths stay plain" do
     temp_fixture_file("basic", @controller, """
     defmodule BasicWeb.TraceController do
       use BasicWeb, :controller
@@ -141,7 +141,8 @@ defmodule Sobelow.CodeFlowTest do
 
     results = at(results("Traversal.FileModule"), @controller)
     assert length(results) == 4
-    assert Enum.all?(results, &(paths(&1) == []))
+    assert [qualified] = Enum.reject(results, &(paths(&1) == []))
+    assert site(hd(qualified["locations"])) == {@controller, 18}
   end
 
   defp results(check) do

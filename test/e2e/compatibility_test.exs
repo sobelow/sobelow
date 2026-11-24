@@ -69,6 +69,10 @@ defmodule Sobelow.CompatibilityTest do
     assert Map.take(ids, Map.keys(expected["rule_ids"])) == expected["rule_ids"]
     {stdout, _stderr} = scan_io("basic", format: "sarif")
     results = hd(Jason.decode!(stdout)["runs"])["results"]
+    # Source-to-sink paths are additive. Compare every historical field and
+    # independently check which results acquired a path in this fixture.
+    assert for(r <- results, r["codeFlows"], do: r["ruleId"]) == ["SBLW021", "SBLW019", "SBLW017"]
+    results = Enum.map(results, &Map.delete(&1, "codeFlows"))
     strip_hashes = fn results -> Enum.map(results, &Map.delete(&1, "partialFingerprints")) end
     expected_results = release_columns(expected["sarif_results"])
     assert strip_hashes.(results) == strip_hashes.(expected_results)

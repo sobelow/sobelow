@@ -16,13 +16,13 @@ defmodule Sobelow.Traversal.SendFile do
 
   use Sobelow.Finding
 
-  alias Sobelow.Parse.LocalFlow
+  alias Sobelow.Parse.Flow
 
   def run(fun, meta_file) do
     confidence = if !meta_file.controller?, do: :low
 
     Finding.init(@finding_type, meta_file.filename, confidence)
-    |> Finding.multi_from_def(fun, parse_def(fun), LocalFlow.for_argument(meta_file, 2))
+    |> Finding.multi_from_def(fun, parse_def(fun), Flow.for_argument(meta_file, 2))
     |> Enum.each(&Print.add_finding(&1))
   end
 

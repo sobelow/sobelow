@@ -2,7 +2,7 @@ defmodule Sobelow.Scan.Discovery do
   @moduledoc false
 
   alias Sobelow.Parse
-  alias Sobelow.Parse.LocalFlow
+  alias Sobelow.Parse.Flow
   alias Sobelow.Parse.Metadata
   alias Sobelow.Scan
   alias Sobelow.Utils
@@ -58,13 +58,19 @@ defmodule Sobelow.Scan.Discovery do
       get_phoenix_files(root_meta_files ++ libroot_meta_files, default_router)
 
     ignored_checks = if routers == [], do: no_router(), else: []
+    files = root_meta_files ++ libroot_meta_files ++ extra_meta_files
+
+    {files, templates} =
+      if Sobelow.output_format() == "sarif",
+        do: Flow.attach(files, template_meta_files),
+        else: {files, template_meta_files}
 
     %{
       app_name: app_name,
       allowed: allowed,
       ignored_checks: ignored_checks,
-      files: root_meta_files ++ libroot_meta_files ++ extra_meta_files,
-      templates: template_meta_files,
+      files: files,
+      templates: templates,
       routers: routers,
       endpoints: endpoints
     }
@@ -172,17 +178,14 @@ defmodule Sobelow.Scan.Discovery do
     use_funs = meta_funs.use_funs
     import_funs = meta_funs.import_funs
 
-    lexical =
-      Map.new(Sobelow.Lexical.functions(ast), fn {fun, scope} ->
-        {Metadata.definition_key(fun), scope}
-      end)
+    lexical = Sobelow.Lexical.function_scopes(ast)
 
     skips = Metadata.function_skips(ast)
 
-    argument_flows =
-      if Sobelow.output_format() == "sarif" and Utils.controller?(use_funs),
-        do: LocalFlow.index(ast, Utils.normalize_path(filename)),
-        else: %{}
+    definitions =
+      if Sobelow.output_format() == "sarif",
+        do: Flow.definitions(ast, Utils.normalize_path(filename), lexical),
+        else: []
 
     scan_contexts =
       Enum.map(contexts, fn context ->
@@ -203,7 +206,6 @@ defmodule Sobelow.Scan.Discovery do
 
         %{
           functions: functions,
-          argument_flows: argument_flows,
           controller?: Utils.controller?(context.use_funs),
           imports_ecto_sql?: Utils.imports?(context.import_funs, [:Ecto, :Adapters, :SQL]),
           ecto_repo?: Utils.uses?(context.use_funs, [:Ecto, :Repo])
@@ -214,6 +216,7 @@ defmodule Sobelow.Scan.Discovery do
       filename: Utils.normalize_path(filename),
       file_path: Path.expand(filename),
       scan_contexts: scan_contexts,
+      flow_definitions: definitions,
       controller?: Utils.controller?(use_funs),
       router?: Utils.router?(use_funs),
       is_endpoint?: Utils.endpoint?(use_funs),

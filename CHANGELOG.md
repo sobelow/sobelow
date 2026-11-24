@@ -2,9 +2,13 @@
 
 ## Unreleased
 
-  * SARIF reports now link controller render assignments to matching `raw`
-    calls in templates. File traversal results can also show the path from a
-    controller argument through one private helper to the checked file path.
+  * SARIF file traversal and SQL query/stream findings can trace request data
+    through assignments, helper arguments and returns, and statically resolved
+    project modules. The analysis tracks map fields, tuple positions and
+    branches to the checked path or SQL text argument.
+  * SARIF XSS findings link controller render assignments to matching `raw`
+    calls in templates. LiveView findings can also trace an event payload
+    through an assign on the returned socket to its use in inline or colocated HEEx.
 
 ## v0.19.0
 

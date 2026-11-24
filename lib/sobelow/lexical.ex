@@ -1,5 +1,7 @@
 defmodule Sobelow.Lexical do
   @moduledoc false
+  alias Sobelow.Parse.Metadata
+
   @context_key {__MODULE__, :context}
   @local_sinks %{raw: :HTML, put_resp_header: :Conn, put_resp_content_type: :Conn}
   @modules %{
@@ -9,8 +11,12 @@ defmodule Sobelow.Lexical do
     Controller: [:Phoenix, :Controller]
   }
 
-  def functions(ast) do
-    analyze(ast).functions
+  def functions(ast), do: analyze(ast).functions
+
+  def function_scopes(ast, opts \\ []) do
+    Map.new(analyze(ast, opts).functions, fn {fun, scope} ->
+      {Metadata.definition_key(fun), scope}
+    end)
   end
 
   def file_calls(ast) do
@@ -21,12 +27,10 @@ defmodule Sobelow.Lexical do
     end)
   end
 
-  defp analyze(ast) do
-    {_env, acc} =
-      walk(ast, %{aliases: %{}, imports: %{}, repo?: false, local_functions: []}, %{
-        functions: %{},
-        calls: %{}
-      })
+  defp analyze(ast, opts \\ []) do
+    env = %{aliases: %{}, imports: %{}, repo?: false, local_functions: []}
+    env = if opts[:project_modules], do: Map.put(env, :module_path, []), else: env
+    {_env, acc} = walk(ast, env, %{functions: %{}, calls: %{}})
 
     acc
   end
@@ -43,6 +47,41 @@ defmodule Sobelow.Lexical do
   end
 
   def active?, do: is_map(Process.get(@context_key))
+
+  def resolved_module(call) do
+    case resolution(call) do
+      %{module: module} -> module
+      _ -> nil
+    end
+  end
+
+  def live_assign?(call) do
+    case resolution(call) do
+      %{imports: imports} ->
+        owners = [[:Phoenix, :Component], [:Phoenix, :LiveView]]
+
+        Enum.all?(imports, fn {owner, selection} ->
+          if owner in owners,
+            do: imported?(selection, {:assign, 3}),
+            else: not possible_import?(selection, {:assign, 3})
+        end)
+
+      _ ->
+        false
+    end
+  end
+
+  # Only link an unqualified project helper when its import names one owner.
+  def imported_module(call, signature) do
+    with %{imports: imports} <- resolution(call),
+         [owner] <-
+           for({owner, selection} <- imports, possible_import?(selection, signature), do: owner),
+         {kind, _} when kind in [:only, :except] <- imports[owner] do
+      owner
+    else
+      _ -> nil
+    end
+  end
 
   # Kernel sigils are implicitly imported unless a local definition or an
   # explicit import selection establishes a different owner.
@@ -240,11 +279,12 @@ defmodule Sobelow.Lexical do
 
   defp walk({:__block__, _, nodes}, env, acc), do: walk(nodes, env, acc)
 
-  defp walk({:defmodule, _, [_name, [do: body]]}, env, acc) do
+  defp walk({:defmodule, _, [name, [do: body]]}, env, acc) do
     # Local definitions apply throughout their module, including before their
     # declaration. Nested modules inherit imports and aliases, not local functions.
-    {_inner, acc} = walk(body, Map.put(env, :local_functions, local_functions(body)), acc)
-    {env, acc}
+    {outer, inner} = module_scope(name, env)
+    {_inner, acc} = walk(body, Map.put(inner, :local_functions, local_functions(body)), acc)
+    {outer, acc}
   end
 
   defp walk({kind, _, [_head | _] = parts} = node, env, acc) when kind in [:def, :defp] do
@@ -340,6 +380,19 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk(_, env, acc), do: {env, acc}
+
+  # A nested defmodule A.B installs an alias for A in its enclosing module
+  # and inside its own body. Explicit alias declarations can override it later.
+  defp module_scope({:__aliases__, _, [:"Elixir" | parts]}, %{module_path: _} = env),
+    do: {env, %{env | module_path: parts}}
+
+  defp module_scope({:__aliases__, _, [first | _] = parts}, %{module_path: parent} = env)
+       when is_atom(first) and is_list(parent) do
+    outer = if parent == [], do: env, else: put_in(env, [:aliases, first], parent ++ [first])
+    {outer, %{outer | module_path: parent ++ parts}}
+  end
+
+  defp module_scope(_, env), do: {env, env}
 
   defp local_functions({:__block__, _, nodes}) do
     signatures = Enum.flat_map(nodes, &local_functions/1) |> Enum.uniq()

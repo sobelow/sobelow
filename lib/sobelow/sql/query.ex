@@ -24,18 +24,28 @@ defmodule Sobelow.SQL.Query do
 
   use Sobelow.Finding
 
+  alias Sobelow.Parse.Flow
+
   def run(fun, meta_file) do
     confidence = if !meta_file.controller?, do: :low
 
     Enum.each(@query_funcs, fn query_func ->
       Finding.init(@finding_type, meta_file.filename, confidence)
-      |> Finding.multi_from_def(fun, parse_sql_def(fun, query_func, meta_file.imports_ecto_sql?))
+      |> Finding.multi_from_def(
+        fun,
+        parse_sql_def(fun, query_func, meta_file.imports_ecto_sql?),
+        Flow.for_argument(meta_file, 1)
+      )
       |> Enum.each(&Print.add_finding(&1))
     end)
 
     Enum.each(@query_funcs, fn query_func ->
       Finding.init(@finding_type, meta_file.filename, confidence)
-      |> Finding.multi_from_def(fun, parse_repo_query_def(fun, query_func, meta_file.ecto_repo?))
+      |> Finding.multi_from_def(
+        fun,
+        parse_repo_query_def(fun, query_func, meta_file.ecto_repo?),
+        Flow.for_argument(meta_file, 0)
+      )
       |> Enum.each(&Print.add_finding(&1))
     end)
   end
