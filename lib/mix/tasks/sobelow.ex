@@ -13,7 +13,7 @@ defmodule Mix.Tasks.Sobelow do
   ## Command line options
 
   * `--root -r` - Specify application root directory
-  * `--verbose -v` - Print vulnerable code snippets
+  * `--verbose -v` - Show code snippets and available source-to-sink paths in text output
   * `--ignore -i` - Ignore modules
   * `--only` - Run only the given modules
   * `--ignore-files` - Ignore files

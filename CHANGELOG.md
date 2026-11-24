@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+  * `mix sobelow --verbose` displays each available source-to-sink path above
+    the highlighted code snippet, with a file and location for each step.
   * SARIF file traversal and SQL query/stream findings can trace request data
     through assignments, helper arguments and returns, and statically resolved
     project modules. The analysis tracks map fields, tuple positions and

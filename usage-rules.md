@@ -184,8 +184,10 @@ Other useful flags:
 ## What it will and will not find
 
 Sobelow flags patterns for review. It grades confidence using the enclosing
-function. In SARIF, the following findings can also include a source-to-sink
-path in `codeFlows`.
+function. Run `mix sobelow --verbose` (or `-v`) to see a possible source-to-sink
+path above the code snippet when one is available. Each step shows its location
+relative to the scan root and what happened to the value. SARIF includes the
+same paths in `codeFlows` for the following findings.
 
 - A controller `XSS.Raw` result links the render assignment to each matching
   `raw` expression in the selected EEx or HEEx template.
@@ -207,8 +209,9 @@ helpers are supported too. Return values carry evidence back to the caller.
 Each checked argument shows the first supported path in source order. Dynamic
 dispatch, ambiguous helper clauses, and paths beyond the analysis limits can
 leave a finding without a trace. Guards and unknown branch conditions can
-leave several alternatives open. A trace describes a possible flow. Its
-presence or absence does not change the finding's confidence or fingerprint.
+leave several alternatives open. A trace describes a possible flow. When
+reviewing a controller path, check that the entry point is routed and that the
+branches shown can run together. The finding keeps its confidence and fingerprint.
 
 It also does not check dependencies for known CVEs in general — the `Vuln.*` checks
 cover a small fixed set of historical advisories by reading installed dependency
