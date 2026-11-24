@@ -1,11 +1,41 @@
 defmodule Sobelow.MetadataTest do
   use ExUnit.Case, async: false
   alias Sobelow.Parse
+  alias Sobelow.Parse.Metadata
 
   setup do
     previous = Application.get_env(:sobelow, :skip)
     on_exit(fn -> Application.put_env(:sobelow, :skip, previous) end)
     :ok
+  end
+
+  test "only specs for the following name and arity carry earlier skips to the definition" do
+    Application.put_env(:sobelow, :skip, true)
+
+    for {spec, head, applies?} <- [
+          {"read() :: term()", "read", true},
+          {"read(binary()) :: term()", ~S/read(path, opts \\ [])/, true},
+          {"read() :: term()", "read(path)", false},
+          {"other(binary()) :: term()", "read(path)", false},
+          {"unquote(generated_spec)", "read(path)", false}
+        ] do
+      ast =
+        Code.string_to_quoted!("""
+        @sobelow_skip ["Traversal.FileModule"]
+        @spec #{spec}
+        @deprecated "Use the new API"
+        @sobelow_skip ["Misc.BinToTerm"]
+        def #{head}, do: :ok
+        """)
+
+      {:__block__, _, statements} = ast
+      key = Metadata.definition_key(List.last(statements))
+
+      checks =
+        if applies?, do: ["Traversal.FileModule", "Misc.BinToTerm"], else: ["Misc.BinToTerm"]
+
+      assert Metadata.function_skips(ast) == %{key => checks}, spec
+    end
   end
 
   test "combined metadata matches separate extraction for nested modules and skips" do

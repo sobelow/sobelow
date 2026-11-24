@@ -60,13 +60,45 @@ defmodule Sobelow.PipelineBehaviorTest do
              |> Enum.filter(&String.ends_with?(&1["file"], path))
   end
 
-  test "function skips bind to adjacent definitions in their own block only" do
+  test "function skips apply across function annotations only when enabled" do
+    path =
+      temp_fixture_file("no_router", "lib/annotated.ex", """
+      defmodule Annotated do
+        # sobelow_skip ["Traversal.FileModule"]
+        @doc false
+        def documented(path), do: File.read(path)
+
+        # sobelow_skip ["Traversal.FileModule"]
+        @impl true
+        def callback(path), do: File.read(path)
+
+        # sobelow_skip ["Traversal.FileModule"]
+        @spec read(t) :: term() when t: binary()
+        # sobelow_skip ["Misc.BinToTerm"]
+        defp read(path) when is_binary(path), do: File.read(path)
+
+        def ordinary(path), do: File.read(path)
+      end
+      """)
+
+    file_findings = fn skip ->
+      scan("no_router", skip: skip, only: ["Traversal.FileModule"])
+      |> findings_for("Traversal.FileModule")
+      |> Enum.filter(&(&1["file"] == path))
+    end
+
+    all = file_findings.(false)
+    assert Enum.map(all, & &1["line"]) == [4, 8, 13, 15]
+    assert file_findings.(true) == [List.last(all)]
+  end
+
+  test "function skips bind to definitions in their own block only" do
     path =
       temp_fixture_file("basic", "lib/skip_boundaries.ex", """
       defmodule SkipBoundaries do
         # sobelow_skip ["Traversal.FileModule"]
-        @doc "Not part of the skip"
-        def after_doc(path), do: File.read(path)
+        @unrelated "A module attribute"
+        def after_attr(path), do: File.read(path)
         def after_nested(path) do
           if path do
             # sobelow_skip ["Traversal.FileModule"]
@@ -78,13 +110,16 @@ defmodule Sobelow.PipelineBehaviorTest do
         # sobelow_skip ["Traversal.FileModule"]
         def skipped(path), do: File.read(path)
         def later(path), do: File.read(path)
+        # sobelow_skip ["Traversal.FileModule"]
+        @spec later(binary()) :: term()
+        def after_other_spec(path), do: File.read(path)
       end
       """)
 
     assert scan("basic", skip: true)
            |> findings_for("Traversal.FileModule")
            |> Enum.filter(&String.ends_with?(&1["file"], path))
-           |> Enum.map(& &1["line"]) == [4, 10, 15]
+           |> Enum.map(& &1["line"]) == [4, 10, 15, 18]
   end
 
   test "an ignored explicit router is never parsed by config checks" do
