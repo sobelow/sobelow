@@ -44,7 +44,7 @@ defmodule Sobelow.Scanner do
       Enum.each(meta_file.scan_contexts, fn context ->
         context_meta =
           Map.merge(
-            Map.take(meta_file, [:filename, :file_path]),
+            Map.take(meta_file, [:filename, :file_path, :live_renders]),
             Map.drop(context, [:functions])
           )
 

@@ -184,20 +184,31 @@ Other useful flags:
 ## What it will and will not find
 
 Sobelow flags patterns for review. It grades confidence using the enclosing
-function. Two kinds of SARIF results also show how data moves between source
-locations.
+function. In SARIF, the following findings can also include a source-to-sink
+path in `codeFlows`.
 
 - A controller `XSS.Raw` result links the render assignment to each matching
   `raw` expression in the selected EEx or HEEx template.
-- For `Traversal.FileModule` and `Traversal.SendFile`, a trace can start at a
-  public two-argument controller function, follow request data through one
-  same-module private helper, and end at the checked path argument. Sobelow
-  follows direct calls and pipes with simple parameter bindings. It shows the
-  first matching caller in source order. Ambiguous clauses, dynamic dispatch,
-  and rebinding can leave a finding without a trace.
+- `Traversal.FileModule` and `Traversal.SendFile` trace request data to the
+  checked path argument. `SQL.Query` and `SQL.Stream` trace it to the SQL text
+  argument. A request value used only as a bound SQL parameter contributes
+  no path to the query text.
+- A LiveView `XSS.Raw` result can link the payload of `handle_event/3` to
+  `assign/3` on the returned socket and then to the matching `@assign` in
+  `raw`. Sobelow recognizes inline `render/1` functions that return a HEEx
+  sigil directly and conventionally named, colocated `.html.heex` templates.
 
-These traces supplement existing findings. A helper can still receive request
-data through paths beyond this limited analysis.
+The analysis starts at public two-argument controller functions and LiveView
+event handlers. It follows assignments and rebindings, literal map keys, tuple
+positions, and branches in `case`, `with`, `if`, and `unless`. Calls and pipes
+can cross files through a statically resolved public function. Local private
+helpers are supported too. Return values carry evidence back to the caller.
+
+Each checked argument shows the first supported path in source order. Dynamic
+dispatch, ambiguous helper clauses, and paths beyond the analysis limits can
+leave a finding without a trace. Guards and unknown branch conditions can
+leave several alternatives open. A trace describes a possible flow. Its
+presence or absence does not change the finding's confidence or fingerprint.
 
 It also does not check dependencies for known CVEs in general — the `Vuln.*` checks
 cover a small fixed set of historical advisories by reading installed dependency

@@ -20,7 +20,7 @@ defmodule Sobelow.SQL.Stream do
     confidence = if !meta_file.controller?, do: :low
 
     Finding.init(@finding_type, meta_file.filename, confidence)
-    |> Finding.multi_from_def(fun, parse_sql_def(fun))
+    |> Finding.multi_from_def(fun, parse_sql_def(fun), Parse.Flow.for_argument(meta_file, 1))
     |> Enum.each(&Print.add_finding(&1))
   end
 

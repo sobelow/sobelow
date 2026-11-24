@@ -16,7 +16,7 @@ defmodule Sobelow.Traversal.FileModule do
 
   use Sobelow.Finding
 
-  alias Sobelow.Parse.LocalFlow
+  alias Sobelow.Parse.Flow
 
   @file_funcs [
     :read,
@@ -41,6 +41,11 @@ defmodule Sobelow.Traversal.FileModule do
   ]
   @double_file_funcs [:cp, :copy, :cp!, :copy!, :cp_r, :cp_r!, :ln, :ln!, :ln_s, :ln_s!]
 
+  @doc false
+  def path_indexes(name) when name in @file_funcs, do: [0]
+  def path_indexes(name) when name in @double_file_funcs, do: [0, 1]
+  def path_indexes(_), do: []
+
   def run(fun, meta_file) do
     confidence = if !meta_file.controller?, do: :low
 
@@ -50,7 +55,7 @@ defmodule Sobelow.Traversal.FileModule do
       |> Finding.multi_from_def(
         fun,
         parse_def(fun, file_func),
-        LocalFlow.for_argument(meta_file, 0)
+        Flow.for_argument(meta_file, 0)
       )
       |> Enum.each(&Print.add_finding(&1))
     end)
@@ -61,7 +66,7 @@ defmodule Sobelow.Traversal.FileModule do
       |> Finding.multi_from_def(
         fun,
         parse_second_def(fun, file_func),
-        LocalFlow.for_argument(meta_file, 1)
+        Flow.for_argument(meta_file, 1)
       )
       |> Enum.each(&Print.add_finding(&1))
     end)
