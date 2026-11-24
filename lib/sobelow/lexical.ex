@@ -279,13 +279,11 @@ defmodule Sobelow.Lexical do
 
   defp walk({:__block__, _, nodes}, env, acc), do: walk(nodes, env, acc)
 
-  defp walk({:defmodule, _, [name, [do: body]]}, env, acc) do
-    # Local definitions apply throughout their module, including before their
-    # declaration. Nested modules inherit imports and aliases, not local functions.
-    {outer, inner} = module_scope(name, env)
-    {_inner, acc} = walk(body, Map.put(inner, :local_functions, local_functions(body)), acc)
-    {outer, acc}
-  end
+  defp walk({kind, _, [name, [do: body]]}, env, acc)
+       when kind in [:defmodule, :defprotocol], do: walk_module(name, body, env, acc)
+
+  defp walk({:defimpl, _, [name, _options, [do: body]]}, env, acc),
+    do: walk_module(name, body, env, acc)
 
   defp walk({kind, _, [_head | _] = parts} = node, env, acc) when kind in [:def, :defp] do
     # Qualified checks can see defaults and implicit rescue/else/after clauses.
@@ -331,6 +329,10 @@ defmodule Sobelow.Lexical do
     # same call so alias resolution and import arities survive that conversion.
     walk(Sobelow.Parse.create_fun_cap(fun, meta, arity), env, acc)
   end
+
+  # Preserve literal module values passed to statically selected project helpers.
+  defp walk({:__aliases__, _, _} = node, env, acc),
+    do: {env, put_call(acc, node, %{module: module_name(node, env)})}
 
   defp walk({:sigil_H, _, _} = node, env, acc) do
     # The string's AST is parsed later, after source locations and assigns have
@@ -380,6 +382,13 @@ defmodule Sobelow.Lexical do
   end
 
   defp walk(_, env, acc), do: {env, acc}
+
+  defp walk_module(name, body, env, acc) do
+    # Nesting inherits aliases and imports, but not local definitions.
+    {outer, inner} = module_scope(name, env)
+    {_inner, acc} = walk(body, Map.put(inner, :local_functions, local_functions(body)), acc)
+    {outer, acc}
+  end
 
   # A nested defmodule A.B installs an alias for A in its enclosing module
   # and inside its own body. Explicit alias declarations can override it later.
